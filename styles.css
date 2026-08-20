@@ -59,6 +59,52 @@ button {
   font-size: 14px;
 }
 
+.boot-error-screen {
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+  padding: 0 28px;
+}
+
+.boot-error-icon { font-size: 34px; }
+
+.boot-error-text {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+/* ---- PWA: "Új verzió elérhető" sáv ---- */
+.update-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  background: var(--panel-2);
+  border-top: 1px solid var(--accent);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.update-banner-btn {
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
 .app-shell {
   max-width: 460px;
   margin: 0 auto;

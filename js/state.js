@@ -1,7 +1,8 @@
 // Egyszerű app-szintű állapotkezelés (pub-sub), build-eszköz és keretrendszer nélkül.
 
 const state = {
-  status: "loading", // loading | auth | pending | dashboard
+  status: "loading", // loading | boot-error | auth | pending | needs-baby | dashboard
+  bootError: null, // induláskori hiba szövege (pl. nincs internetkapcsolat) | null
   session: null,
   authMode: "login", // login | register
   authError: null,
@@ -43,6 +44,10 @@ const state = {
 
   // Általános "fejlesztés alatt" infó-modal (Grafikonok, Excel export)
   infoModal: null, // { title, message } | null
+
+  // PWA: új service worker verzió elérhető, "Frissítés" sáv megjelenítéséhez
+  updateAvailable: false,
+  waitingWorker: null, // a várakozó (még nem aktivált) service worker | null
 };
 
 const listeners = new Set();

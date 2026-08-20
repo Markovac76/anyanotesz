@@ -35,15 +35,42 @@ export function renderApp() {
   root.innerHTML = "";
   const st = getState();
 
-  if (st.status === "loading") { root.appendChild(buildLoadingScreen()); return; }
-  if (st.status === "auth") { root.appendChild(buildAuthScreen()); return; }
-  if (st.status === "needs-baby") { root.appendChild(buildBabyStepScreen()); return; }
-  if (st.status === "pending") { root.appendChild(buildPendingScreen()); return; }
-  if (st.status === "dashboard") { root.appendChild(buildDashboardScreen()); return; }
+  if (st.status === "loading") root.appendChild(buildLoadingScreen());
+  else if (st.status === "boot-error") root.appendChild(buildBootErrorScreen(st));
+  else if (st.status === "auth") root.appendChild(buildAuthScreen());
+  else if (st.status === "needs-baby") root.appendChild(buildBabyStepScreen());
+  else if (st.status === "pending") root.appendChild(buildPendingScreen());
+  else if (st.status === "dashboard") root.appendChild(buildDashboardScreen());
+
+  // Az "Új verzió elérhető" sáv az aktuális képernyőtől függetlenül,
+  // mindig a legfelül jelenik meg, amint a service worker jelzi.
+  if (st.updateAvailable) root.appendChild(buildUpdateBanner());
 }
 
 function buildLoadingScreen() {
   return h("div", { className: "boot-loading", text: "Betöltés…" });
+}
+
+function buildBootErrorScreen(st) {
+  const wrap = h("div", { className: "boot-loading boot-error-screen" });
+  wrap.appendChild(h("div", { className: "boot-error-icon", text: "📡" }));
+  wrap.appendChild(h("div", { className: "boot-error-text", text: st.bootError || "Nincs internetkapcsolat." }));
+  const retryBtn = h("button", { className: "btn btn-primary", text: "Újrapróbálkozás", style: { maxWidth: "220px" } });
+  retryBtn.addEventListener("click", () => window.location.reload());
+  wrap.appendChild(retryBtn);
+  return wrap;
+}
+
+function buildUpdateBanner() {
+  const bar = h("div", { className: "update-banner" });
+  bar.appendChild(h("span", { text: "Új verzió elérhető" }));
+  const btn = h("button", { className: "update-banner-btn", text: "Frissítés" });
+  btn.addEventListener("click", () => {
+    const st = getState();
+    st.waitingWorker?.postMessage("SKIP_WAITING");
+  });
+  bar.appendChild(btn);
+  return bar;
 }
 
 // ---- Auth (bejelentkezés / regisztráció) ----
