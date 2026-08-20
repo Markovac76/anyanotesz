@@ -115,12 +115,13 @@ create table diapers (
   created_at timestamptz default now()
 );
 
--- Ismétlődő teendő sablonok (Karbantartásban szerkesztve — MVP-ben egyelőre fix: köldökápolás, D-vitamin, K-vitamin)
+-- Ismétlődő teendő sablonok (Karbantartásban szerkeszthető: gyógyszer és tevékenység sablonok, szabadon bővíthetők)
 create table care_templates (
   id uuid primary key default gen_random_uuid(),
   baby_id uuid references babies(id) on delete cascade,
+  category text check (category in ('medication','activity')),
   name text not null,
-  frequency text check (frequency in ('daily','monthly')),
+  frequency text check (frequency in ('daily','weekly','monthly')),
   created_at timestamptz default now()
 );
 
@@ -149,7 +150,7 @@ create table questions (
 
 Minden táblán **Row Level Security** aktív; a policy-k a `baby_members` táblán keresztül ellenőrzik, hogy a bejelentkezett user jóváhagyott tagja-e az adott babának (a Lapról Lapra `member_series`-hez hasonló mintára).
 
-> Megjegyzés: a `care_templates`/`care_logs` páros teszi lehetővé, hogy a K-vitamin (havonta) és D-vitamin (naponta) egyaránt kezelhető legyen ugyanazzal a szerkezettel, csak eltérő `frequency` értékkel. Az emlékeztető-logika (esedékes-e, hány nap van hátra) kliens oldalon számolódik a `care_logs` legutóbbi bejegyzéséből.
+> Megjegyzés: a `care_templates`/`care_logs` páros teszi lehetővé, hogy tetszőleges gyógyszer/vitamin (`category = 'medication'`) és tevékenység (`category = 'activity'`) sablon kezelhető legyen ugyanazzal a szerkezettel, napi/heti/havi gyakorisággal. A `category` mező csak a megjelenítést különíti el (két külön lista a Karbantartásban és a főoldalon), technikailag egy táblában laknak. Az emlékeztető-logika (esedékes-e, hány nap van hátra) kliens oldalon számolódik a `care_logs` legutóbbi bejegyzéséből, a heti/havi esetben "hátralévő napok" visszaszámlálóval.
 
 ---
 
@@ -157,7 +158,7 @@ Minden táblán **Row Level Security** aktív; a policy-k a `baby_members` tábl
 
 - App név: **Anyanotesz**
 - Gombok: **Karbantartás**, **Súgó**, **Kilépés** (mindenkinek), **Felhasználók** (csak owner)
-- **Karbantartás**: az MVP-ben egy "Fejlesztés alatt" üzenetet mutat, funkció nélkül — tartalmát (baba alapadatok szerkesztése, gyógyszer-sablonok, ismétlődő teendők kezelése) egy későbbi körben tervezzük meg részletesen.
+- **Karbantartás**: baba alapadatok szerkesztése, gyógyszer-sablonok és tevékenység-sablonok kezelése (részletek a 6.6 pontban)
 - A "gyerek neve" sáv a fejléc alatt:
   - **User**: fixen a saját gyereke neve, nincs váltás
   - **Owner/admin**: gyerek-választó, amivel a hozzá tartozó babák között lehet váltani
@@ -194,10 +195,12 @@ Ez adja az aktuális súly és a heti gyarapodás számításának alapját. Mez
 - Opcionális jegyzet
 
 ### 6.4 Egyéb
-- **Köldökápolás**: napi "megtörtént" jelölő, in-app figyelmeztetés, ha estig nem történt meg
-- **D-vitamin csepp**: napi gyakoriságú `care_template`, napi pipálás
-- **K-vitamin csepp**: havi gyakoriságú `care_template`. Ha esedékes → figyelmeztetés + "Beadva ma" gomb. Ha nemrég beadva → **visszaszámláló** a következő esedékességig ("még X nap"), a gomb eltűnik (nem visszavonható a "beadva" állapot).
-- Mindhárom művelet (köldökápolás, D-vitamin, K-vitamin) **historikus bejegyzést is generál** ("Egyéb" típusként), ami a Historikus adatok listában megjelenik és ugyanúgy szerkeszthető/törölhető, mint bármi más.
+- **Köldökápolás**: napi "megtörtént" jelölő, in-app figyelmeztetés, ha estig nem történt meg. Technikailag egy `activity` kategóriájú, napi gyakoriságú `care_template` — a Karbantartásban szerkeszthető/törölhető, mint bármelyik tevékenység-sablon.
+- **Gyógyszer/vitamin sablonok**: a Karbantartásban szabadon felvehető, szerkeszthető, törölhető sablonok (`category = 'medication'`), napi/heti/havi gyakorisággal. Az MVP induláskor két alapértelmezett sablon jön létre: D-vitamin csepp (napi) és K-vitamin csepp (havi) — ezek is szabadon módosíthatók/törölhetők.
+- **Tevékenység sablonok**: ugyanígy szabadon bővíthető lista (`category = 'activity'`), a köldökápolás az induló alapértelmezett elem.
+- Napi gyakoriságú elemeknél: napi pipálás, figyelmeztetés, ha estig nem történt meg.
+- Heti/havi gyakoriságú elemeknél: ha esedékes → figyelmeztetés + "Beadva/Megtörtént" gomb. Ha nemrég megtörtént → **visszaszámláló** a következő esedékességig ("még X nap"), a gomb eltűnik (nem visszavonható az állapot).
+- Mindhárom kategória (gyógyszer, tevékenység, és maguk a napi/heti/havi bejegyzések) **historikus bejegyzést is generál** ("Egyéb" típusként), ami a Historikus adatok listában megjelenik és ugyanúgy szerkeszthető/törölhető, mint bármi más.
 
 ### 6.5 Kérdések a védőnőnek / orvosnak
 - A doboz címe alatt két szűrő-sor:
@@ -206,6 +209,16 @@ Ez adja az aktuális súly és a heti gyarapodás számításának alapját. Mez
 - Minden kérdés önmagában is kinyitható sor: zárt állapotban színes állapot-pötty (sárga = aktuális, zöld = megválaszolt), címzett-címke, kérdés szövege
 - Kinyitva: címzett módosítható, **válasz** mező (több soros szöveg), **állapot** váltó (Még aktuális / Megválaszolva)
 - Új kérdés felvitelekor is választható előre a címzett
+
+### 6.6 Karbantartás
+
+A fejlécben lévő Karbantartás gomb egy külön oldalra navigál, három szekcióval:
+
+1. **Baba alapadatai** — szerkeszthető űrlap: becenév, teljes név, születési dátum/idő, hely, súly, hossz, heti gyarapodási cél (g)
+2. **Gyógyszer sablonok** — lista (`care_templates`, `category = 'medication'`), soronként szerkeszthető/törölhető, plusz "Új sablon" gomb (név + gyakoriság: naponta/hetente/havonta)
+3. **Tevékenység sablonok** — ugyanígy, `category = 'activity'`
+
+Mind a gyógyszer, mind a tevékenység listák megjelenítése és szerkesztése egységes UI-t követ (Keep It Simple), csak külön szekcióban jelennek meg, hogy logikailag elkülönüljenek.
 
 ---
 
@@ -245,8 +258,8 @@ Mindhárom diagramnál azonos navigációs minta: bal/jobb nyíl a léptetéshez
 
 ## 10. Export
 
-- **Excel letöltés**: a Historikus oldal aktuális szűrése szerint, típusonként külön munkalappal (Szoptatás, Pelenkacsere, Egyéb, Kérdések)
-- **Email-küldés**: **későbbi fejlesztés**, az MVP-ben nincs implementálva
+- **MVP-ben placeholder**: az Excel export gomb "Fejlesztés alatt" üzenetet mutat, funkció nélkül (sem letöltés, sem email-küldés)
+- **Későbbi fejlesztés**: Excel letöltés (a Historikus oldal aktuális szűrése szerint, típusonként külön munkalappal), majd azt követően email-küldés
 
 ---
 
@@ -254,10 +267,10 @@ Mindhárom diagramnál azonos navigációs minta: bal/jobb nyíl a léptetéshez
 
 | Funkció | Állapot |
 |---|---|
-| Karbantartás gomb tartalma | "Fejlesztés alatt" üzenet, funkció nélkül — tervezése külön egyeztetés tárgya |
-| Excel export → email küldés | "Fejlesztés alatt" üzenet (maga a letöltés működik) |
+| Excel export | "Fejlesztés alatt" üzenet — sem letöltés, sem email-küldés nincs az MVP-ben |
 | Push notification | Nincs — az emlékeztetők egyelőre csak in-app jelzések |
 | Ikrek / 3+ gyerek UX finomítása | Az owner/admin váltogatás technikailag megvan, de nincs rá külön kidolgozott folyamat |
+| Jelszó/kód mező "megmutatás" funkciója | A regisztrációs és bejelentkezési mezőknél (pl. jelszó) legyen egy szem-ikon vagy hasonló, amivel meg lehet nézni, mit gépeltünk be — jelenleg vakon kell gépelni, elgépelés esetén nincs mód ellenőrizni/javítani |
 
 ---
 
