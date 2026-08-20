@@ -105,6 +105,34 @@ export async function createWeightMeasurement({ babyId, userId, measuredAt, weig
   if (error) throw error;
 }
 
+// Legutóbbi mérés — ez adja a gyerek-doboz "aktuális súly" értékét.
+export async function getLatestWeightMeasurement(babyId) {
+  const { data, error } = await supabase
+    .from("weight_measurements")
+    .select("weight_g, measured_at")
+    .eq("baby_id", babyId)
+    .order("measured_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Az adott időpont előtti utolsó mérés — a heti gyarapodás számításának
+// kiindulási súlya (a hét eleje előtti utolsó ismert súly).
+export async function getWeightMeasurementBefore(babyId, beforeIso) {
+  const { data, error } = await supabase
+    .from("weight_measurements")
+    .select("weight_g, measured_at")
+    .eq("baby_id", babyId)
+    .lt("measured_at", beforeIso)
+    .order("measured_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // ---- Szoptatás ----
 
 export async function createFeeding({

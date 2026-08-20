@@ -3,7 +3,10 @@
 import { supabase } from "./supabase-client.js";
 import { setState } from "./state.js";
 import { resolveUserStatus, loadPendingRequests } from "./auth.js";
-import { ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby } from "./data.js";
+import {
+  ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
+  getLatestWeightMeasurement, getWeightMeasurementBefore,
+} from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
 
@@ -24,7 +27,7 @@ export async function enterSession(session) {
       pendingRequests,
       view: "dashboard",
     });
-    await Promise.all([refreshCareData(activeBabyId), refreshQuestions(activeBabyId)]);
+    await Promise.all([refreshCareData(activeBabyId), refreshQuestions(activeBabyId), refreshBabyInfo(activeBabyId)]);
     return;
   }
 
@@ -54,7 +57,26 @@ export async function refreshCareData(babyId) {
 
 export async function switchActiveBaby(babyId) {
   setState({ activeBabyId: babyId, babyPickerOpen: false, view: "dashboard", historyEditing: null });
-  await Promise.all([refreshCareData(babyId), refreshQuestions(babyId)]);
+  await Promise.all([refreshCareData(babyId), refreshQuestions(babyId), refreshBabyInfo(babyId)]);
+}
+
+// Gyerek-doboz adatai (5. pont): baba alapadatok + legutóbbi súlymérés +
+// a hét eleje előtti súly (a heti gyarapodás számításának alapja).
+function startOfWeek(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = (x.getDay() + 6) % 7; // hétfő=0
+  x.setDate(x.getDate() - day);
+  return x;
+}
+
+export async function refreshBabyInfo(babyId) {
+  const weekStart = startOfWeek(new Date());
+  const [baby, latestWeight, weekBaselineWeight] = await Promise.all([
+    getBaby(babyId),
+    getLatestWeightMeasurement(babyId),
+    getWeightMeasurementBefore(babyId, weekStart.toISOString()),
+  ]);
+  setState({ babyInfo: { baby, latestWeight, weekBaselineWeight, weekStart } });
 }
 
 // "Kérdések" doboz adatai — babaváltáskor újra kell tölteni.

@@ -7,6 +7,7 @@ import { buildWeightCard, buildFeedCard, buildDiaperCard, buildOtherCard, buildQ
 import { buildHistoryPage } from "./history-page.js";
 import { buildGraphsPage } from "./graphs-page.js";
 import { buildMaintenancePage } from "./maintenance-page.js";
+import { buildHeroCard } from "./hero-card.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -357,6 +358,8 @@ function buildDashboardScreen() {
   } else if (st.view === "maintenance") {
     main.appendChild(buildMaintenancePage(st));
   } else {
+    const hero = buildHeroCard(st);
+    if (hero) main.appendChild(hero);
     main.appendChild(buildWeightCard(st));
     main.appendChild(buildFeedCard(st));
     main.appendChild(buildDiaperCard(st));

@@ -8,7 +8,7 @@ import { setState } from "./state.js";
 import { createDateField, createTimeField } from "./datetime-picker.js";
 import { createNumberField, createToggleGroup, createPillGroup } from "./fields.js";
 import { createWeightMeasurement, createFeeding, createDiaper, logCareDone, createQuestion, updateQuestion } from "./data.js";
-import { refreshCareData } from "./session.js";
+import { refreshCareData, refreshBabyInfo } from "./session.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -85,6 +85,9 @@ export function buildWeightCard(st) {
       timeField.setValue(weightWhen);
       weightValue = "";
       weightField.setValue("");
+      // Az új mérés az aktuális súlyt és a heti gyarapodást is érinti a
+      // gyerek-dobozban — frissítjük, hogy azonnal lássa a friss értéket.
+      await refreshBabyInfo(st.activeBabyId);
     } catch (e) {
       status.textContent = e.message;
       status.className = "save-status error";

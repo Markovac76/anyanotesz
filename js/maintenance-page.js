@@ -115,7 +115,11 @@ function buildBabyEditCard(st) {
       const memberships = st.memberships.map((m) => (
         m.baby.id === baby.id ? { ...m, baby: { ...m.baby, nickname: updated.nickname, full_name: updated.full_name } } : m
       ));
-      setState({ memberships, maintenanceBaby: updated });
+      // A gyerek-doboz (dashboard) is ugyanezt a baba-rekordot mutatja —
+      // frissítjük, hogy a Karbantartásból visszalépve azonnal a friss
+      // adatokat (születési adatok, heti cél) lássa, ne kelljen újratöltés.
+      const babyInfo = st.babyInfo ? { ...st.babyInfo, baby: updated } : st.babyInfo;
+      setState({ memberships, maintenanceBaby: updated, babyInfo });
       status.textContent = "Mentve ✓";
       status.className = "save-status success";
     } catch (e) {
