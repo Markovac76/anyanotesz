@@ -17,7 +17,7 @@
 //   fájlt az előzővel), az main.js-ben lévő regisztráció pedig ekkor
 //   értesíti a UI-t ("Új verzió elérhető").
 
-const CACHE_NAME = "anyanotesz-shell-v4";
+const CACHE_NAME = "anyanotesz-shell-v5";
 
 const SHELL_ASSETS = [
   "/",
@@ -26,6 +26,7 @@ const SHELL_ASSETS = [
   "/manifest.json",
   "/config.js",
   "/js/main.js",
+  "/js/sw-update.js",
   "/js/state.js",
   "/js/render.js",
   "/js/session.js",

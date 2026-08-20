@@ -4,6 +4,7 @@ import { supabase } from "./supabase-client.js";
 import { setState, subscribe } from "./state.js";
 import { renderApp } from "./render.js";
 import { enterSession } from "./session.js";
+import { registerServiceWorker } from "./sw-update.js";
 
 subscribe(renderApp);
 renderApp();
@@ -42,34 +43,4 @@ supabase.auth.onAuthStateChange((event) => {
 });
 
 bootstrap();
-
-// ---- PWA: service worker regisztráció + frissítés-jelzés ----
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).then((registration) => {
-      registration.addEventListener("updatefound", () => {
-        const newWorker = registration.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener("statechange", () => {
-          // "installed" + van már aktív vezérlő SW ⇒ ez egy FRISSÍTÉS (nem az
-          // első telepítés), tehát van értelme megkérdezni a usert.
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            setState({ updateAvailable: true, waitingWorker: newWorker });
-          }
-        });
-      });
-    }).catch(() => {
-      // Service worker regisztráció sikertelen (pl. nem secure context) —
-      // az app enélkül is működik, csak PWA-funkciók nélkül.
-    });
-  });
-
-  // Amint az újonnan aktivált SW átveszi az irányítást, egyszer újratöltjük
-  // az oldalt, hogy a friss (nem cache-elt) app-kerettel fusson tovább.
-  let reloadedForUpdate = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloadedForUpdate) return;
-    reloadedForUpdate = true;
-    window.location.reload();
-  });
-}
+registerServiceWorker();

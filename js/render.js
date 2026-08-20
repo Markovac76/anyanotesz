@@ -8,6 +8,7 @@ import { buildHistoryPage } from "./history-page.js";
 import { buildGraphsPage } from "./graphs-page.js";
 import { buildMaintenancePage } from "./maintenance-page.js";
 import { buildHeroCard } from "./hero-card.js";
+import { triggerUpdate, applyUpdate } from "./sw-update.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -66,10 +67,7 @@ function buildUpdateBanner() {
   const bar = h("div", { className: "update-banner" });
   bar.appendChild(h("span", { text: "Új verzió elérhető" }));
   const btn = h("button", { className: "update-banner-btn", text: "Frissítés" });
-  btn.addEventListener("click", () => {
-    const st = getState();
-    st.waitingWorker?.postMessage("SKIP_WAITING");
-  });
+  btn.addEventListener("click", () => applyUpdate());
   bar.appendChild(btn);
   return bar;
 }
@@ -302,8 +300,9 @@ function buildPendingScreen() {
 
 // ---- Dashboard (üres alapváz) ----
 
-function buildIconBtn({ icon, label, emph, onClick }) {
-  const btn = h("button", { className: "icon-btn" + (emph ? " emph" : ""), onClick });
+function buildIconBtn({ icon, label, emph, litUp, onClick }) {
+  const className = "icon-btn" + (emph ? " emph" : "") + (litUp ? " update-ready" : "");
+  const btn = h("button", { className, onClick });
   btn.appendChild(h("span", { text: icon, style: { fontSize: "17px" } }));
   btn.appendChild(h("span", { text: label }));
   return btn;
@@ -319,6 +318,11 @@ function buildDashboardScreen() {
   headerRow.appendChild(buildIconBtn({
     icon: "🔧", label: "Karbant.",
     onClick: () => openMaintenance(st.activeBabyId),
+  }));
+  headerRow.appendChild(buildIconBtn({
+    icon: "🔄", label: "Frissítés",
+    litUp: st.updateAvailable,
+    onClick: () => triggerUpdate(),
   }));
   headerRow.appendChild(buildIconBtn({ icon: "❓", label: "Súgó" }));
 

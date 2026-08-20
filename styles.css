@@ -158,6 +158,18 @@ button {
   background: color-mix(in srgb, var(--pink) 25%, var(--panel));
 }
 
+.icon-btn.update-ready {
+  color: var(--green);
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 25%, var(--panel));
+  animation: icon-btn-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes icon-btn-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 45%, transparent); }
+  50% { box-shadow: 0 0 6px 2px color-mix(in srgb, var(--green) 45%, transparent); }
+}
+
 .icon-btn svg { width: 19px; height: 19px; }
 .icon-btn span { font-size: 9px; font-weight: 600; }
 
