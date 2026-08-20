@@ -1,0 +1,9 @@
+{
+  "name": "anyanotesz",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Szoptatás- és baba-napló alkalmazás — natív ES modulok, build-eszköz nélkül.",
+  "scripts": {
+    "build": "node scripts/generate-config.js"
+  }
+}
