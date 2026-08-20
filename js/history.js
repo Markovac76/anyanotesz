@@ -1,16 +1,23 @@
-// Historikus adatok: a szoptatás/pelenkacsere/care_logs táblák egyesítése egy
-// közös, kronologikus listává — a demó mock HISTORY tömbjének valós Supabase
-// megfelelője. A "care_logs" bejegyzések ("Egyéb" típusként) a Köldökápolás/
-// D-vitamin/K-vitamin naplózásokból származnak, lásd specifikacio.md 6.4.
-// A "Ruhátlan testsúlymérés" bejegyzések itt sem jelennek meg — a demó
-// TYPE_META-ja is csak feed/diaper/other típust ismer.
+// Historikus adatok: a súlymérés/szoptatás/pelenkacsere/care_logs táblák
+// egyesítése egy közös, kronologikus listává. A "care_logs" bejegyzések
+// ("Egyéb" típusként) a Köldökápolás/D-vitamin/K-vitamin naplózásokból
+// származnak, lásd specifikacio.md 6.4. A "Ruhátlan testsúlymérés" saját
+// típusként ("weight") jelenik meg — a demó ezt nem ismerte, de a valós
+// alkalmazásban szükség van rá, hogy egy elgépelt súlyérték utólag is
+// javítható legyen a felületről.
 
 import { supabase } from "./supabase-client.js";
 
 const HISTORY_LIMIT = 150;
 
 export async function getHistoryEntries(babyId) {
-  const [feedRes, diaperRes, careRes] = await Promise.all([
+  const [weightRes, feedRes, diaperRes, careRes] = await Promise.all([
+    supabase
+      .from("weight_measurements")
+      .select("id, measured_at, weight_g")
+      .eq("baby_id", babyId)
+      .order("measured_at", { ascending: false })
+      .limit(HISTORY_LIMIT),
     supabase
       .from("feedings")
       .select("id, side, started_at, cant_measure, weight_before_g, weight_after_g, extra_milk_ml, extra_formula_ml")
@@ -30,9 +37,17 @@ export async function getHistoryEntries(babyId) {
       .order("done_at", { ascending: false })
       .limit(HISTORY_LIMIT),
   ]);
+  if (weightRes.error) throw weightRes.error;
   if (feedRes.error) throw feedRes.error;
   if (diaperRes.error) throw diaperRes.error;
   if (careRes.error) throw careRes.error;
+
+  const weightEntries = weightRes.data.map((w) => ({
+    id: w.id,
+    type: "weight",
+    when: new Date(w.measured_at),
+    weightG: w.weight_g,
+  }));
 
   const feedEntries = feedRes.data.map((f) => ({
     id: f.id,
@@ -63,7 +78,20 @@ export async function getHistoryEntries(babyId) {
     templateName: c.template?.name || "Egyéb",
   }));
 
-  return [...feedEntries, ...diaperEntries, ...otherEntries].sort((a, b) => b.when - a.when);
+  return [...weightEntries, ...feedEntries, ...diaperEntries, ...otherEntries].sort((a, b) => b.when - a.when);
+}
+
+export async function updateWeightEntry(id, { when, weightG }) {
+  const { error } = await supabase
+    .from("weight_measurements")
+    .update({ measured_at: when.toISOString(), weight_g: weightG })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteWeightEntry(id) {
+  const { error } = await supabase.from("weight_measurements").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function updateFeedingEntry(id, { when, side, cantMeasure, wStart, wEnd, extraMilk, extraFormula }) {

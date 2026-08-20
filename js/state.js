@@ -41,7 +41,7 @@ const state = {
   // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás oldal
   view: "dashboard", // dashboard | history | graphs | maintenance
   historyEntries: [],
-  historyFilters: { feed: true, diaper: true, other: true },
+  historyFilters: { feed: true, diaper: true, other: true, weight: true },
   historyEditing: null, // { type, id } | null
   graphsData: null, // { weightSeries, feedingTimes, diaperEvents, growth } | null
   maintenanceBaby: null, // a babies tábla teljes sora, szerkesztéshez | null

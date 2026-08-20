@@ -236,7 +236,7 @@ Mind a gyógyszer, mind a tevékenység listák megjelenítése és szerkesztés
 - Külön oldal, saját, nagyméretű **Vissza** gombbal (egykezes elérésre optimalizálva)
 - Minden bejegyzés egy közös, kronologikus listában, a legújabb elöl
 - Minden sor elején a **pontos dátum és idő**, utána a relatív jelző ("· ma", "· tegnap")
-- **Szűrés típus szerint**: Szoptatás / Pelenkacsere / Egyéb (chipek, egyszerre több is bekapcsolható)
+- **Szűrés típus szerint**: Szoptatás / Pelenkacsere / Egyéb / Ruhátlan testsúlymérés (chipek, egyszerre több is bekapcsolható)
 - **Módosítás**: minden sor jobb szélén toll-ikon + "Módosítás" felirat — ugyanaz a felugró ablak nyílik, mint amivel a bejegyzés eredetileg készült, előre kitöltve
 - Az ablak alján **Mégse** + **Mentés**, alattuk egy kisebb **"Bejegyzés törlése"** gomb — törlés csak egy második megerősítő koppintás után történik meg
 - **Grafikonok** gomb → külön oldalra navigál (lásd 9. pont)

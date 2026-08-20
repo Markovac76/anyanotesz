@@ -1,13 +1,15 @@
 // Historikus adatok oldal — a demó (anyanotesz-demo.jsx) "history" nézetének
 // natív ES-modul portja: kronologikus, szűrhető lista + szerkesztő modal.
-// A "Ruhátlan testsúlymérés" bejegyzések itt sem jelennek meg (a demó
-// TYPE_META-ja is csak feed/diaper/other típust ismer).
+// A demó TYPE_META-ja csak feed/diaper/other típust ismert; a valós
+// alkalmazásban a "Ruhátlan testsúlymérés" is saját típusként ("weight")
+// szerepel, hogy egy elgépelt súlyérték utólag is javítható legyen.
 
 import { setState } from "./state.js";
 import { createDateField, createTimeField } from "./datetime-picker.js";
 import { createNumberField, createToggleGroup, createPillGroup } from "./fields.js";
 import {
   getHistoryEntries,
+  updateWeightEntry, deleteWeightEntry,
   updateFeedingEntry, deleteFeedingEntry,
   updateDiaperEntry, deleteDiaperEntry,
   updateCareLogEntry, deleteCareLogEntry,
@@ -42,6 +44,9 @@ function entryDateTimeLabel(d) {
 }
 
 function entryDetail(e) {
+  if (e.type === "weight") {
+    return `${e.weightG} g`;
+  }
   if (e.type === "feed") {
     const sideLabel = e.side === "left" ? "Bal mell" : e.side === "right" ? "Jobb mell" : "Mindkét mell";
     let s = sideLabel;
@@ -69,6 +74,7 @@ const TYPE_META = {
   feed: { label: "Szoptatás", color: "var(--pink)", icon: "💧" },
   diaper: { label: "Pelenkacsere", color: "var(--amber)", icon: "🧷" },
   other: { label: "Egyéb", color: "var(--accent)", icon: "🩺" },
+  weight: { label: "Testsúlymérés", color: "var(--green)", icon: "⚖️" },
 };
 
 export function buildHistoryPage(st) {
@@ -162,7 +168,13 @@ function openEditModal(entry, babyId) {
   // ---- típus-specifikus mezők ----
   let side = entry.side, cantMeasure = entry.cantMeasure, wStart = entry.wStart, wEnd = entry.wEnd, extraMilk = entry.extraMilk, extraFormula = entry.extraFormula;
   let diaperType = entry.diaperType, poopColor = entry.poopColor, poopTexture = entry.poopTexture, note = entry.note;
-  let wStartField, wEndField, extraMilkField, extraFormulaField, weightGrid, estimateBox, measureBtn, colorGroup, textureGroup, poopWrap, noteInput;
+  let weightValue = entry.type === "weight" ? String(entry.weightG) : "";
+  let wStartField, wEndField, extraMilkField, extraFormulaField, weightGrid, estimateBox, measureBtn, colorGroup, textureGroup, poopWrap, noteInput, weightField;
+
+  if (entry.type === "weight") {
+    weightField = createNumberField({ label: "Súly", unit: "g", value: weightValue, onChange: (v) => { weightValue = v; } });
+    sheet.appendChild(weightField.el);
+  }
 
   if (entry.type === "feed") {
     sheet.appendChild(h("label", { text: "Melyik oldalról", style: { display: "block", fontSize: "11.5px", color: "var(--muted)", marginBottom: "4px" } }));
@@ -256,10 +268,19 @@ function openEditModal(entry, babyId) {
   const cancelBtn = h("button", { className: "btn btn-secondary", text: "Mégse", onClick: () => close() });
   const saveBtn = h("button", { className: "btn btn-primary", text: "Mentés" });
   saveBtn.addEventListener("click", async () => {
+    if (entry.type === "weight") {
+      const weightG = parseInt(weightValue, 10);
+      if (!weightValue || Number.isNaN(weightG) || weightG <= 0) {
+        alert("Add meg a súlyt.");
+        return;
+      }
+    }
     saveBtn.disabled = true;
     saveBtn.textContent = "Mentés…";
     try {
-      if (entry.type === "feed") {
+      if (entry.type === "weight") {
+        await updateWeightEntry(entry.id, { when, weightG: parseInt(weightValue, 10) });
+      } else if (entry.type === "feed") {
         await updateFeedingEntry(entry.id, { when, side, cantMeasure, wStart, wEnd, extraMilk, extraFormula });
       } else if (entry.type === "diaper") {
         await updateDiaperEntry(entry.id, { when, diaperType, poopColor, poopTexture, note: noteInput.value.trim() });
@@ -294,7 +315,8 @@ function openEditModal(entry, babyId) {
     }
     deleteBtn.disabled = true;
     try {
-      if (entry.type === "feed") await deleteFeedingEntry(entry.id);
+      if (entry.type === "weight") await deleteWeightEntry(entry.id);
+      else if (entry.type === "feed") await deleteFeedingEntry(entry.id);
       else if (entry.type === "diaper") await deleteDiaperEntry(entry.id);
       else await deleteCareLogEntry(entry.id);
       const historyEntries = await getHistoryEntries(babyId);
