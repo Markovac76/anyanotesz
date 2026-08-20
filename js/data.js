@@ -133,6 +133,24 @@ export async function getWeightMeasurementBefore(babyId, beforeIso) {
   return data;
 }
 
+// Az adott időpont utáni (azzal egyenlő vagy későbbi) legkorábbi mérés —
+// fallback kiindulási súly, ha a hét eleje előttről nincs adat (pl. csak
+// most kezdődött a mérések rögzítése): ilyenkor a héten belüli első
+// méréstől számítva közelítjük a gyarapodást, rövidebb, pontatlanabb
+// időszak alapján.
+export async function getEarliestWeightMeasurementSince(babyId, sinceIso) {
+  const { data, error } = await supabase
+    .from("weight_measurements")
+    .select("weight_g, measured_at")
+    .eq("baby_id", babyId)
+    .gte("measured_at", sinceIso)
+    .order("measured_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // ---- Szoptatás ----
 
 export async function createFeeding({

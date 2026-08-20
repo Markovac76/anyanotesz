@@ -5,7 +5,7 @@ import { setState } from "./state.js";
 import { resolveUserStatus, loadPendingRequests } from "./auth.js";
 import {
   ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
-  getLatestWeightMeasurement, getWeightMeasurementBefore,
+  getLatestWeightMeasurement, getWeightMeasurementBefore, getEarliestWeightMeasurementSince,
 } from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
@@ -71,12 +71,13 @@ function startOfWeek(d) {
 
 export async function refreshBabyInfo(babyId) {
   const weekStart = startOfWeek(new Date());
-  const [baby, latestWeight, weekBaselineWeight] = await Promise.all([
+  const [baby, latestWeight, weekBaselineWeight, weekEarliestWeight] = await Promise.all([
     getBaby(babyId),
     getLatestWeightMeasurement(babyId),
     getWeightMeasurementBefore(babyId, weekStart.toISOString()),
+    getEarliestWeightMeasurementSince(babyId, weekStart.toISOString()),
   ]);
-  setState({ babyInfo: { baby, latestWeight, weekBaselineWeight, weekStart } });
+  setState({ babyInfo: { baby, latestWeight, weekBaselineWeight, weekEarliestWeight, weekStart } });
 }
 
 // "Kérdések" doboz adatai — babaváltáskor újra kell tölteni.
