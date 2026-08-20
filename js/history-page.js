@@ -70,11 +70,14 @@ function entryDetail(e) {
   return `${e.templateName} ${verb}`;
 }
 
+// A sorrend (Testsúlymérés / Szoptatás / Pelenkacsere / Egyéb) a dashboard
+// funkció-dobozainak sorrendjét követi — ez adja a szűrő-chipek és a
+// TYPE_META-t használó egyéb helyek megjelenési sorrendjét is.
 const TYPE_META = {
+  weight: { label: "Testsúlymérés", color: "var(--green)", icon: "⚖️" },
   feed: { label: "Szoptatás", color: "var(--pink)", icon: "💧" },
   diaper: { label: "Pelenkacsere", color: "var(--amber)", icon: "🧷" },
   other: { label: "Egyéb", color: "var(--accent)", icon: "🩺" },
-  weight: { label: "Testsúlymérés", color: "var(--green)", icon: "⚖️" },
 };
 
 export function buildHistoryPage(st) {
