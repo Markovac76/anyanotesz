@@ -7,6 +7,19 @@ import { getState, setState } from "./state.js";
 
 let swRegistration = null;
 
+// Egyetlen közös figyelő: egy adott "installing" workert kísér végig a
+// telepítés befejezéséig, és onnantól kezelve mindig ugyanazt a
+// forrás-igazságot (state.updateAvailable/waitingWorker) állítja be —
+// ezt hívja mind az automatikus észlelés (updatefound), mind a fejléc-gomb
+// kézi ellenőrzése, hogy a kettő sose mondhasson ellent egymásnak.
+function watchInstallingWorker(newWorker) {
+  newWorker.addEventListener("statechange", () => {
+    if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+      setState({ updateAvailable: true, waitingWorker: newWorker });
+    }
+  });
+}
+
 export function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
@@ -25,13 +38,7 @@ export function registerServiceWorker() {
       }
 
       registration.addEventListener("updatefound", () => {
-        const newWorker = registration.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            setState({ updateAvailable: true, waitingWorker: newWorker });
-          }
-        });
+        if (registration.installing) watchInstallingWorker(registration.installing);
       });
     } catch {
       // Regisztráció sikertelen (pl. nem secure context) — az app enélkül
@@ -53,22 +60,69 @@ export function applyUpdate() {
   st.waitingWorker?.postMessage("SKIP_WAITING");
 }
 
+let checkInFlight = false;
+
 // Kézi ellenőrzés — a fejléc-gomb erre az esetre kell: ha nincs (már ismert)
 // várakozó verzió, aktívan rákérdezünk a szerverre, hátha közben megjelent
-// egy újabb service-worker.js.
-async function checkForUpdate() {
-  if (!swRegistration) return;
+// egy újabb service-worker.js. Fontos: ez NEM egy fix várakozási idővel
+// találgat, hanem ténylegesen megvárja a telepítés (fájlok letöltése +
+// cache-elése) befejezését — különben pont az itt hozott "nincs új verzió"
+// döntés mondhatna ellent az updatefound-alapú automatikus észlelésnek,
+// ha a telepítés a találgatott idő után fejeződik be.
+export async function checkForUpdate() {
+  if (!swRegistration || checkInFlight) return;
+  checkInFlight = true;
   try {
-    await swRegistration.update();
-  } catch {
-    return;
-  }
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  if (swRegistration.waiting) {
-    setState({ updateAvailable: true, waitingWorker: swRegistration.waiting });
-    swRegistration.waiting.postMessage("SKIP_WAITING");
-  } else {
-    setState({ infoModal: { title: "Nincs új verzió", message: "Jelenleg ez a legfrissebb elérhető verzió fut." } });
+    try {
+      await swRegistration.update();
+    } catch {
+      setState({ infoModal: { title: "Nincs új verzió", message: "Jelenleg ez a legfrissebb elérhető verzió fut." } });
+      return;
+    }
+
+    // Az update() közben esetleg már be is fejeződött egy korábban indult
+    // telepítés — ha van kész várakozó worker, azt azonnal használjuk.
+    if (swRegistration.waiting) {
+      setState({ updateAvailable: true, waitingWorker: swRegistration.waiting });
+      swRegistration.waiting.postMessage("SKIP_WAITING");
+      return;
+    }
+
+    const installing = swRegistration.installing;
+    if (!installing) {
+      // Az update() nem talált eltérést a szerveren lévő service-worker.js
+      // és a jelenleg futó között — tényleg nincs új verzió.
+      setState({ infoModal: { title: "Nincs új verzió", message: "Jelenleg ez a legfrissebb elérhető verzió fut." } });
+      return;
+    }
+
+    // Van folyamatban lévő telepítés — végigvárjuk, ahelyett hogy
+    // találgatnánk, mikor lesz kész (ésszerű felső korlát mellett, hátha a
+    // hálózat szokatlanul lassú, vagy a worker "redundant"-tá válik).
+    const installedWorker = await new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        installing.removeEventListener("statechange", onChange);
+        resolve(value);
+      };
+      const onChange = () => {
+        if (installing.state === "installed") finish(installing);
+        else if (installing.state === "redundant") finish(null);
+      };
+      installing.addEventListener("statechange", onChange);
+      setTimeout(() => finish(null), 15000);
+    });
+
+    if (installedWorker) {
+      setState({ updateAvailable: true, waitingWorker: installedWorker });
+      installedWorker.postMessage("SKIP_WAITING");
+    } else {
+      setState({ infoModal: { title: "Nincs új verzió", message: "Jelenleg ez a legfrissebb elérhető verzió fut." } });
+    }
+  } finally {
+    checkInFlight = false;
   }
 }
 
