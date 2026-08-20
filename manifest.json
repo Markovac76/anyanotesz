@@ -1,0 +1,15 @@
+{
+  "name": "Anyanotesz",
+  "short_name": "Anyanotesz",
+  "description": "Szoptatás- és baba-napló alkalmazás",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1220",
+  "theme_color": "#0f1220",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
