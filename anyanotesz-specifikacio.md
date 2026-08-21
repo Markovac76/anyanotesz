@@ -79,10 +79,13 @@ create table baby_members (
 );
 
 -- Globális owner-flag — kizárólag manuális SQL-lel állítható, nincs hozzá
--- RLS UPDATE policy (lásd 2. pont)
+-- RLS UPDATE policy (lásd 2. pont). Az email egy denormalizált másolat az
+-- auth.users-ből (az auth séma nincs kitéve a kliens felé), trigger tartja
+-- szinkronban — ez adja a "Userek" felület név-megjelenítését.
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   is_owner boolean not null default false,
+  email text,
   created_at timestamptz default now()
 );
 

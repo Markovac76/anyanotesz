@@ -80,14 +80,33 @@ export async function getMyProfile(userId) {
 // Owner globális áttekintője: minden baba, mindegyikhez a tagságai
 // (role/status/user_id) — a babies_select_authenticated policy mindenkinek
 // nyitott, a baby_members_select policy pedig globális owner-nek is
-// engedi a SELECT-et (lásd 0005_owner_model.sql).
+// engedi a SELECT-et (lásd 0005_owner_model.sql). Az emaileket külön
+// lekérdezéssel egészítjük ki a profiles táblából (nincs FK a baby_members
+// és a profiles között, amit a PostgREST embedelni tudna) — a profiles
+// SELECT policy (lásd 0006_profile_emails.sql) magától szűkíti a
+// visszakapott sorokat arra, amit a hívó egyáltalán láthat.
 export async function getAllBabiesOverview() {
   const { data, error } = await supabase
     .from("babies")
     .select("id, nickname, full_name, baby_members(user_id, role, status)")
     .order("nickname");
   if (error) throw error;
-  return data ?? [];
+  const babies = data ?? [];
+
+  const userIds = [...new Set(babies.flatMap((b) => (b.baby_members || []).map((m) => m.user_id)))];
+  if (userIds.length === 0) return babies;
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .in("id", userIds);
+  if (profilesError) throw profilesError;
+  const emailById = new Map(profiles.map((p) => [p.id, p.email]));
+
+  return babies.map((b) => ({
+    ...b,
+    baby_members: (b.baby_members || []).map((m) => ({ ...m, email: emailById.get(m.user_id) ?? null })),
+  }));
 }
 
 export async function promoteToAdmin(babyId, userId) {

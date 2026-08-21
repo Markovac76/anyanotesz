@@ -31,6 +31,10 @@ function shortId(userId) {
   return userId.slice(0, 8) + "…";
 }
 
+function displayName(member) {
+  return member?.email || shortId(member.user_id);
+}
+
 async function reloadAfterMembershipChange() {
   const st = getState();
   await enterSession(st.session);
@@ -107,7 +111,8 @@ function buildBabyManageCard(st, overview) {
   }));
 
   const pending = st.pendingRequests.filter((r) => r.baby_id === overview.id);
-  const approvedMembers = (overview.baby_members || []).filter((m) => m.status === "approved");
+  const allMembers = overview.baby_members || [];
+  const approvedMembers = allMembers.filter((m) => m.status === "approved");
   const adminCount = approvedMembers.filter((m) => m.role === "admin").length;
 
   if (pending.length > 0) {
@@ -115,8 +120,9 @@ function buildBabyManageCard(st, overview) {
       h("h3", { text: "Függőben lévő kérelmek", style: { fontSize: "13px" } }),
     ]));
     pending.forEach((req) => {
+      const reqMember = allMembers.find((m) => m.user_id === req.user_id);
       const row = h("div", { className: "request-row" });
-      row.appendChild(h("div", { className: "request-info", text: `user: ${shortId(req.user_id)}` }));
+      row.appendChild(h("div", { className: "request-info", text: displayName(reqMember || { user_id: req.user_id }) + " szeretne csatlakozni" }));
       const actions = h("div", { className: "request-actions" });
       const approveBtn = h("button", { className: "btn-approve", text: "Jóváhagy" });
       approveBtn.addEventListener("click", async () => {
@@ -146,7 +152,7 @@ function buildBabyManageCard(st, overview) {
     const row = h("div", { className: "request-row" });
     const isMe = m.user_id === st.session.user.id;
     row.appendChild(h("div", { className: "request-info" }, [
-      h("span", {}, [document.createTextNode(isMe ? "Te" : shortId(m.user_id))]),
+      h("span", {}, [document.createTextNode(isMe ? "Te" : displayName(m))]),
       h("span", { text: m.role === "admin" ? " — admin" : " — user", style: { color: "var(--muted)" } }),
     ]));
 
@@ -256,7 +262,7 @@ function buildOwnerBabyCard(baby) {
   } else {
     approvedMembers.forEach((m) => {
       const row = h("div", { className: "request-row" });
-      row.appendChild(h("div", { className: "request-info", text: `${shortId(m.user_id)} — ${m.role === "admin" ? "admin" : "user"}` }));
+      row.appendChild(h("div", { className: "request-info", text: `${displayName(m)} — ${m.role === "admin" ? "admin" : "user"}` }));
       card.appendChild(row);
     });
   }
@@ -270,7 +276,7 @@ function buildOwnerBabyCard(baby) {
       approvedUsers.forEach((m) => {
         const opt = document.createElement("option");
         opt.value = m.user_id;
-        opt.textContent = shortId(m.user_id);
+        opt.textContent = displayName(m);
         select.appendChild(opt);
       });
       const promoteBtn = h("button", { className: "btn-approve", text: "Kinevez adminná" });
