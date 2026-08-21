@@ -282,7 +282,6 @@ Mindhárom diagramnál azonos navigációs minta: bal/jobb nyíl a léptetéshez
 | Excel export | "Fejlesztés alatt" üzenet — sem letöltés, sem email-küldés nincs az MVP-ben |
 | Push notification | Nincs — az emlékeztetők egyelőre csak in-app jelzések |
 | Ikrek / 3+ gyerek UX finomítása | A több baba közti váltogatás technikailag megvan (2+ jóváhagyott tagságtól bárkinek), de nincs rá külön kidolgozott folyamat |
-| Jelszó/kód mező "megmutatás" funkciója | A regisztrációs és bejelentkezési mezőknél (pl. jelszó) legyen egy szem-ikon vagy hasonló, amivel meg lehet nézni, mit gépeltünk be — jelenleg vakon kell gépelni, elgépelés esetén nincs mód ellenőrizni/javítani |
 
 ---
 

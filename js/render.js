@@ -29,7 +29,26 @@ function makeInput({ label, type = "text", placeholder = "" }) {
   input.type = type;
   input.placeholder = placeholder;
   input.autocomplete = type === "password" ? "current-password" : type === "email" ? "email" : "off";
-  wrap.appendChild(input);
+
+  if (type !== "password") {
+    wrap.appendChild(input);
+    return { wrap, input };
+  }
+
+  // Jelszó "megmutatás" — alapból rejtett, koppintásra szövegként látszik
+  // (elgépelés-ellenőrzéshez), újra koppintásra visszarejtve.
+  const inputWrap = h("div", { className: "field-input-wrap" });
+  const toggleBtn = h("button", { className: "password-toggle-btn", text: "👁" });
+  toggleBtn.type = "button";
+  toggleBtn.setAttribute("aria-label", "Jelszó megmutatása");
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = input.type === "password";
+    input.type = isHidden ? "text" : "password";
+    toggleBtn.textContent = isHidden ? "🙈" : "👁";
+    toggleBtn.setAttribute("aria-label", isHidden ? "Jelszó elrejtése" : "Jelszó megmutatása");
+  });
+  inputWrap.append(input, toggleBtn);
+  wrap.appendChild(inputWrap);
   return { wrap, input };
 }
 

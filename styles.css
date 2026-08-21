@@ -340,6 +340,28 @@ main {
   margin-top: 4px;
 }
 
+.field-input-wrap {
+  position: relative;
+}
+
+.field-input-wrap input {
+  padding-right: 40px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 .btn {
   width: 100%;
   border-radius: 12px;
