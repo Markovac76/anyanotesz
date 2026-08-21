@@ -48,11 +48,11 @@ function entryDetail(e) {
     return `${e.weightG} g`;
   }
   if (e.type === "feed") {
-    const sideLabel = e.side === "left" ? "Bal mell" : e.side === "right" ? "Jobb mell" : "Mindkét mell";
+    const sideLabel = e.side === "left" ? "Bal mell" : e.side === "right" ? "Jobb mell" : e.side === "both" ? "Mindkét mell" : "Csak kiegészítés";
     let s = sideLabel;
-    if (e.cantMeasure) {
+    if (e.side && e.cantMeasure) {
       s += " · nem mérhető";
-    } else if (e.wStart && e.wEnd) {
+    } else if (e.side && e.wStart && e.wEnd) {
       const est = Math.max(0, Math.round(parseFloat(e.wEnd) - parseFloat(e.wStart)));
       s += ` · ${e.wStart}→${e.wEnd} g (≈${est} g)`;
     }
@@ -172,7 +172,7 @@ function openEditModal(entry, babyId) {
   let side = entry.side, cantMeasure = entry.cantMeasure, wStart = entry.wStart, wEnd = entry.wEnd, extraMilk = entry.extraMilk, extraFormula = entry.extraFormula;
   let diaperType = entry.diaperType, poopColor = entry.poopColor, poopTexture = entry.poopTexture, note = entry.note;
   let weightValue = entry.type === "weight" ? String(entry.weightG) : "";
-  let wStartField, wEndField, extraMilkField, extraFormulaField, weightGrid, estimateBox, measureBtn, colorGroup, textureGroup, poopWrap, noteInput, weightField;
+  let wStartField, wEndField, extraMilkField, extraFormulaField, weightGrid, weightSection, estimateBox, measureBtn, colorGroup, textureGroup, poopWrap, noteInput, weightField;
 
   if (entry.type === "weight") {
     weightField = createNumberField({ label: "Súly", unit: "g", value: weightValue, onChange: (v) => { weightValue = v; } });
@@ -182,26 +182,37 @@ function openEditModal(entry, babyId) {
   if (entry.type === "feed") {
     sheet.appendChild(h("label", { text: "Melyik oldalról", style: { display: "block", fontSize: "11.5px", color: "var(--muted)", marginBottom: "4px" } }));
     const sideGroup = createToggleGroup({
-      options: [{ key: "left", label: "Bal" }, { key: "right", label: "Jobb" }, { key: "both", label: "Mindkettő" }],
-      value: side, color: "var(--pink)",
-      onChange: (v) => { side = v; },
+      options: [
+        { key: "left", label: "Bal" }, { key: "right", label: "Jobb" }, { key: "both", label: "Mindkettő" },
+        { key: "none", label: "Csak kiegészítés" },
+      ],
+      value: side || "none", color: "var(--pink)",
+      onChange: (v) => { side = v; updateWeightSectionVisibility(); },
     });
     sheet.appendChild(h("div", { style: { marginBottom: "10px" } }, [sideGroup.el]));
+
+    weightSection = h("div");
 
     const measureRow = h("div", { className: "row-between" });
     measureRow.appendChild(h("span", { text: "Súly méréséhez", style: { fontSize: "12px", color: "var(--muted)" } }));
     measureBtn = h("button", { className: "measure-toggle" + (cantMeasure ? " active" : ""), text: cantMeasure ? "✓ Nem mérhető" : "Nem mérhető" });
     measureRow.appendChild(measureBtn);
-    sheet.appendChild(measureRow);
+    weightSection.appendChild(measureRow);
 
     weightGrid = h("div", { className: "grid-2", style: { display: cantMeasure ? "none" : "" } });
     wStartField = createNumberField({ label: "Súly – elején", unit: "g", value: wStart, onChange: (v) => { wStart = v; updateEstimate(); } });
     wEndField = createNumberField({ label: "Súly – végén", unit: "g", value: wEnd, onChange: (v) => { wEnd = v; updateEstimate(); } });
     weightGrid.append(wStartField.el, wEndField.el);
-    sheet.appendChild(weightGrid);
+    weightSection.appendChild(weightGrid);
 
     estimateBox = h("div", { className: "estimate-box", style: { display: "none" } });
-    sheet.appendChild(estimateBox);
+    weightSection.appendChild(estimateBox);
+    sheet.appendChild(weightSection);
+
+    function updateWeightSectionVisibility() {
+      weightSection.style.display = side === "none" ? "none" : "";
+    }
+    updateWeightSectionVisibility();
 
     function updateEstimate() {
       if (cantMeasure) { estimateBox.style.display = "none"; return; }
@@ -284,7 +295,15 @@ function openEditModal(entry, babyId) {
       if (entry.type === "weight") {
         await updateWeightEntry(entry.id, { when, weightG: parseInt(weightValue, 10) });
       } else if (entry.type === "feed") {
-        await updateFeedingEntry(entry.id, { when, side, cantMeasure, wStart, wEnd, extraMilk, extraFormula });
+        const noSide = side === "none";
+        await updateFeedingEntry(entry.id, {
+          when,
+          side: noSide ? null : side,
+          cantMeasure: noSide ? true : cantMeasure,
+          wStart: noSide ? "" : wStart,
+          wEnd: noSide ? "" : wEnd,
+          extraMilk, extraFormula,
+        });
       } else if (entry.type === "diaper") {
         await updateDiaperEntry(entry.id, { when, diaperType, poopColor, poopTexture, note: noteInput.value.trim() });
       } else {

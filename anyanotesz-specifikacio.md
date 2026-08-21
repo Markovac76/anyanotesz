@@ -183,7 +183,7 @@ Ez adja az aktuális súly és a heti gyarapodás számításának alapját. Mez
 
 ### 6.2 Szoptatás
 - Dátum (teljes szélességben), alatta két mező egymás mellett: **Idő (kezdet)**, **Idő (befejezés)**
-- Bal/Jobb/Mindkettő választó
+- Bal/Jobb/Mindkettő/**Csak kiegészítés** választó — az utolsó opció akkor kell, ha nem történt tényleges szoptatás, csak anyatej/tápszer kiegészítés adása; ilyenkor a "Súly méréséhez" blokk (a "Nem mérhető most" kapcsolóval és a súly-mezőkkel együtt) el is tűnik, mivel az a szoptatás közbeni lemérésre vonatkozik
 - **"Nem mérhető most"** kapcsoló — ha be van kapcsolva, a súlymezők kimaradnak a bejegyzésből és a számításokból
 - Súly a szoptatás elején / végén (g) — ha mindkettő megadva, automatikusan számolt **becsült elfogyasztott mennyiség** jelenik meg
 - Kiegészítők: + Anyatej (ml), + Tápszer (ml)

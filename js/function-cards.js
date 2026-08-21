@@ -132,26 +132,39 @@ export function buildFeedCard(st) {
 
   body.appendChild(h("label", { text: "Melyik oldalról", style: { display: "block", fontSize: "11.5px", color: "var(--muted)", marginBottom: "4px" } }));
   const sideGroup = createToggleGroup({
-    options: [{ key: "left", label: "🤱 Bal" }, { key: "right", label: "Jobb 🤱" }, { key: "both", label: "Mindkettő" }],
+    options: [
+      { key: "left", label: "🤱 Bal" }, { key: "right", label: "Jobb 🤱" }, { key: "both", label: "Mindkettő" },
+      { key: "none", label: "Csak kiegészítés" },
+    ],
     value: side, color: "var(--pink)",
-    onChange: (v) => { side = v; },
+    onChange: (v) => { side = v; updateWeightSectionVisibility(); },
   });
   body.appendChild(h("div", { style: { marginBottom: "10px" } }, [sideGroup.el]));
+
+  // Ha nincs mell (csak anyatej/tápszer kiegészítés), a "súly méréséhez"
+  // blokknak nincs értelme — az a szoptatás közbeni lemérésre vonatkozik.
+  const weightSection = h("div");
 
   const measureRow = h("div", { className: "row-between" });
   measureRow.appendChild(h("span", { text: "Súly méréséhez", style: { fontSize: "12px", color: "var(--muted)" } }));
   const measureBtn = h("button", { className: "measure-toggle", text: "Nem mérhető most" });
   measureRow.appendChild(measureBtn);
-  body.appendChild(measureRow);
+  weightSection.appendChild(measureRow);
 
   const weightGrid = h("div", { className: "grid-2" });
   const wStartField = createNumberField({ label: "Súly – elején", unit: "g", onChange: (v) => { wStart = v; updateEstimate(); } });
   const wEndField = createNumberField({ label: "Súly – végén", unit: "g", onChange: (v) => { wEnd = v; updateEstimate(); } });
   weightGrid.append(wStartField.el, wEndField.el);
-  body.appendChild(weightGrid);
+  weightSection.appendChild(weightGrid);
 
   const estimateBox = h("div", { className: "estimate-box", style: { display: "none" } });
-  body.appendChild(estimateBox);
+  weightSection.appendChild(estimateBox);
+  body.appendChild(weightSection);
+
+  function updateWeightSectionVisibility() {
+    weightSection.style.display = side === "none" ? "none" : "";
+  }
+  updateWeightSectionVisibility();
 
   function updateEstimate() {
     if (cantMeasure) { estimateBox.style.display = "none"; return; }
@@ -188,15 +201,16 @@ export function buildFeedCard(st) {
     status.className = "save-status";
     try {
       const endedAt = new Date(feedWhen.getFullYear(), feedWhen.getMonth(), feedWhen.getDate(), feedEndWhen.getHours(), feedEndWhen.getMinutes());
+      const noSide = side === "none";
       await createFeeding({
         babyId: st.activeBabyId,
         userId: st.session.user.id,
-        side,
+        side: noSide ? null : side,
         startedAt: feedWhen,
         endedAt,
-        cantMeasure,
-        weightBeforeG: wStart ? parseInt(wStart, 10) : null,
-        weightAfterG: wEnd ? parseInt(wEnd, 10) : null,
+        cantMeasure: noSide ? true : cantMeasure,
+        weightBeforeG: noSide || !wStart ? null : parseInt(wStart, 10),
+        weightAfterG: noSide || !wEnd ? null : parseInt(wEnd, 10),
         extraMilkMl: extraMilk ? parseInt(extraMilk, 10) : null,
         extraFormulaMl: extraFormula ? parseInt(extraFormula, 10) : null,
       });
@@ -210,6 +224,7 @@ export function buildFeedCard(st) {
       endTimeField.setValue(feedEndWhen);
       side = "left";
       sideGroup.setValue("left");
+      updateWeightSectionVisibility();
       cantMeasure = false;
       measureBtn.classList.remove("active");
       measureBtn.textContent = "Nem mérhető most";
