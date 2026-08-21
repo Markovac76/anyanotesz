@@ -2,12 +2,13 @@
 import { getState, setState } from "./state.js";
 import { signIn, signUpAccount, joinOrCreateBaby, approveRequest, rejectRequest } from "./auth.js";
 import { findBabyByNickname } from "./data.js";
-import { enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance, openUsers } from "./session.js";
+import { enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance, openUsers, openHelp } from "./session.js";
 import { buildWeightCard, buildFeedCard, buildDiaperCard, buildOtherCard, buildQuestionsCard } from "./function-cards.js";
 import { buildHistoryPage } from "./history-page.js";
 import { buildGraphsPage } from "./graphs-page.js";
 import { buildMaintenancePage } from "./maintenance-page.js";
 import { buildUsersPage } from "./users-page.js";
+import { buildHelpPage } from "./help-page.js";
 import { buildHeroCard } from "./hero-card.js";
 import { triggerUpdate, applyUpdate } from "./sw-update.js";
 
@@ -348,7 +349,7 @@ function buildDashboardScreen() {
     litUp: st.updateAvailable,
     onClick: () => triggerUpdate(),
   }));
-  headerRow.appendChild(buildIconBtn({ icon: "❓", label: "Súgó" }));
+  headerRow.appendChild(buildIconBtn({ icon: "❓", label: "Súgó", onClick: () => openHelp() }));
 
   if (st.isOwner || isBabyAdmin) {
     headerRow.appendChild(buildIconBtn({ icon: "👥", label: "Userek", emph: true, onClick: () => openUsers() }));
@@ -386,6 +387,8 @@ function buildDashboardScreen() {
     main.appendChild(buildMaintenancePage(st));
   } else if (st.view === "users") {
     main.appendChild(buildUsersPage(st));
+  } else if (st.view === "help") {
+    main.appendChild(buildHelpPage());
   } else if (hasBaby) {
     const hero = buildHeroCard(st);
     if (hero) main.appendChild(hero);

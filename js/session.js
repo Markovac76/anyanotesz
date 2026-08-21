@@ -166,6 +166,16 @@ export function closeMaintenance() {
   setState({ view: "dashboard", maintenanceBaby: null });
 }
 
+// Súgó oldal megnyitása/bezárása — tisztán statikus tartalom, nincs hozzá
+// adatlekérdezés.
+export function openHelp() {
+  setState({ view: "help" });
+}
+
+export function closeHelp() {
+  setState({ view: "dashboard" });
+}
+
 export async function exitSession() {
   await supabase.auth.signOut();
   setState({

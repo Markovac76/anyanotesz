@@ -46,8 +46,8 @@ const state = {
   questionsOpen: true,
   questions: [], // [{ id, text, recipient, answer, answered, created_at }]
 
-  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás / Userek oldal
-  view: "dashboard", // dashboard | history | graphs | maintenance | users
+  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás / Userek / Súgó oldal
+  view: "dashboard", // dashboard | history | graphs | maintenance | users | help
   historyEntries: [],
   historyFilters: { feed: true, diaper: true, other: true, weight: true },
   historyEditing: null, // { type, id } | null
