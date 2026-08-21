@@ -21,7 +21,7 @@ const state = {
 
   // Gyerek-doboz (mindig látható infósáv, 5. pont): baba alapadatok,
   // legutóbbi súlymérés, a hét eleje előtti súly a gyarapodás-számításhoz.
-  babyInfo: null, // { baby, latestWeight, weekBaselineWeight, weekEarliestWeight, weekStart } | null
+  babyInfo: null, // { baby, latestWeight, weekBaselineWeight, weekStart } | null
 
   // funkció-dobozok nyitott/csukott állapota
   weightOpen: true,

@@ -118,33 +118,17 @@ export async function getLatestWeightMeasurement(babyId) {
   return data;
 }
 
-// Az adott időpont előtti utolsó mérés — a heti gyarapodás számításának
-// kiindulási súlya (a hét eleje előtti utolsó ismert súly).
-export async function getWeightMeasurementBefore(babyId, beforeIso) {
-  const { data, error } = await supabase
-    .from("weight_measurements")
-    .select("weight_g, measured_at")
-    .eq("baby_id", babyId)
-    .lt("measured_at", beforeIso)
-    .order("measured_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-// Az adott időpont utáni (azzal egyenlő vagy későbbi) legkorábbi mérés —
-// fallback kiindulási súly, ha a hét eleje előttről nincs adat (pl. csak
-// most kezdődött a mérések rögzítése): ilyenkor a héten belüli első
-// méréstől számítva közelítjük a gyarapodást, rövidebb, pontatlanabb
-// időszak alapján.
-export async function getEarliestWeightMeasurementSince(babyId, sinceIso) {
+// Az előző hét utolsó mérése — ez adja a heti gyarapodás számításának
+// kiindulási súlyát ("hétfőtől hétfőig" — a most futó hét elejére eső
+// súlyt az előző hét záró mérése adja, nem az aktuális hét első mérése).
+export async function getLastWeightMeasurementInRange(babyId, sinceIso, beforeIso) {
   const { data, error } = await supabase
     .from("weight_measurements")
     .select("weight_g, measured_at")
     .eq("baby_id", babyId)
     .gte("measured_at", sinceIso)
-    .order("measured_at", { ascending: true })
+    .lt("measured_at", beforeIso)
+    .order("measured_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;

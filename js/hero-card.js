@@ -1,10 +1,13 @@
 // Gyerek-doboz — a demó (anyanotesz-demo.jsx) BABY_INFO kártyájának natív
 // ES-modul portja, valós adatokkal (specifikacio.md 5. pont).
 //
-// Heti gyarapodás számítása: a hét eleje (hétfő 00:00) előtti utolsó ismert
-// súlyhoz képest mért tényleges gyarapodás, a cél EDDIGI (a hétből eltelt
-// napok arányos) részéhez viszonyítva — nem a teljes heti célhoz, hiszen
-// a hét közepén még nem várható el a teljes heti gyarapodás.
+// Heti gyarapodás számítása: az ELŐZŐ HÉT utolsó ismert méréséhez ("hétfőtől
+// hétfőig") képest mért tényleges gyarapodás, a cél EDDIGI (a hétből eltelt
+// napok arányos) részéhez viszonyítva — nem a teljes heti célhoz, hiszen a
+// hét közepén még nem várható el a teljes heti gyarapodás. Ha az előző hétből
+// nincs mérés, nem közelítünk az aktuális hét első mérésével — inkább jelezzük,
+// hogy egyelőre nincs elég adat, minthogy egy rosszul skálázott (rövidebb
+// időszakra vetített) számot mutassunk.
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -24,41 +27,19 @@ const STATUS_LABEL = {
 };
 
 function computeGainStatus(info) {
-  const { baby, latestWeight, weekBaselineWeight, weekEarliestWeight, weekStart } = info;
-  if (!latestWeight) return null;
+  const { baby, latestWeight, weekBaselineWeight, weekStart } = info;
+  if (!latestWeight || !weekBaselineWeight) return null;
 
   const target = baby.weekly_gain_target_g || 150;
   const now = new Date();
-
-  let baseline;
-  let elapsedDays;
-  let approximate = false;
-
-  if (weekBaselineWeight) {
-    // A rendes eset: van mérés a hét eleje (hétfő) előttről is, tehát a
-    // teljes eddig eltelt hétre (hétfőtől máig) tudjuk vetíteni a célt.
-    baseline = weekBaselineWeight;
-    elapsedDays = Math.min(7, Math.max(1, Math.floor((now - weekStart) / 86400000) + 1));
-  } else if (weekEarliestWeight && new Date(weekEarliestWeight.measured_at).getTime() !== new Date(latestWeight.measured_at).getTime()) {
-    // Fallback: nincs korábbi (hét eleje előtti) mérés — pl. csak most
-    // kezdődött a naplózás. A héten belüli első méréstől máig eltelt
-    // (rövidebb, pontatlanabb) időszakra vetítjük a célt.
-    baseline = weekEarliestWeight;
-    const baselineDate = new Date(weekEarliestWeight.measured_at);
-    elapsedDays = Math.max(0.5, (now - baselineDate) / 86400000);
-    approximate = true;
-  } else {
-    // Egyetlen mérés van csak összesen — nincs miből trendet számolni.
-    return null;
-  }
-
+  const elapsedDays = Math.min(7, Math.max(1, Math.floor((now - weekStart) / 86400000) + 1));
   const expectedSoFar = (target * elapsedDays) / 7;
   if (expectedSoFar <= 0) return null;
 
-  const actualGain = latestWeight.weight_g - baseline.weight_g;
+  const actualGain = latestWeight.weight_g - weekBaselineWeight.weight_g;
   const ratio = actualGain / expectedSoFar;
   const status = ratio >= 0.85 && ratio <= 1.15 ? "green" : ratio >= 0.5 && ratio <= 1.5 ? "amber" : "red";
-  return { status, actualGain, target, approximate };
+  return { status, actualGain, target };
 }
 
 export function buildHeroCard(st) {
@@ -101,15 +82,14 @@ export function buildHeroCard(st) {
 
   const gain = computeGainStatus(info);
   if (!gain) {
-    card.appendChild(h("div", { className: "hero-hint", text: "Még nincs elég korábbi adat a heti gyarapodás számításához." }));
+    card.appendChild(h("div", { className: "hero-hint", text: "Az előző hétből még nincs súlymérés, ezért egyelőre nem számolható a heti gyarapodás." }));
     return card;
   }
 
   const statusRow = h("div", { className: "hero-status-row" });
   statusRow.appendChild(h("span", { className: `status-badge ${gain.status}`, text: STATUS_LABEL[gain.status] }));
   const sign = gain.actualGain >= 0 ? "+" : "";
-  const approxNote = gain.approximate ? " (közelítő, kevés adat alapján)" : "";
-  statusRow.appendChild(h("span", { className: "hero-status-detail", text: `${sign}${gain.actualGain} g a héten eddig (cél: ${gain.target} g/hét)${approxNote}` }));
+  statusRow.appendChild(h("span", { className: "hero-status-detail", text: `${sign}${gain.actualGain} g a héten eddig (cél: ${gain.target} g/hét)` }));
   card.appendChild(statusRow);
 
   return card;

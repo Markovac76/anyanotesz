@@ -5,7 +5,7 @@ import { setState } from "./state.js";
 import { resolveUserStatus, loadPendingRequests } from "./auth.js";
 import {
   ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
-  getLatestWeightMeasurement, getWeightMeasurementBefore, getEarliestWeightMeasurementSince,
+  getLatestWeightMeasurement, getLastWeightMeasurementInRange,
 } from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
@@ -61,7 +61,8 @@ export async function switchActiveBaby(babyId) {
 }
 
 // Gyerek-doboz adatai (5. pont): baba alapadatok + legutóbbi súlymérés +
-// a hét eleje előtti súly (a heti gyarapodás számításának alapja).
+// az előző hét utolsó mérése (a heti gyarapodás "hétfőtől hétfőig" számításának
+// kiindulási súlya — nem az aktuális hét első mérése).
 function startOfWeek(d) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = (x.getDay() + 6) % 7; // hétfő=0
@@ -71,13 +72,13 @@ function startOfWeek(d) {
 
 export async function refreshBabyInfo(babyId) {
   const weekStart = startOfWeek(new Date());
-  const [baby, latestWeight, weekBaselineWeight, weekEarliestWeight] = await Promise.all([
+  const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const [baby, latestWeight, weekBaselineWeight] = await Promise.all([
     getBaby(babyId),
     getLatestWeightMeasurement(babyId),
-    getWeightMeasurementBefore(babyId, weekStart.toISOString()),
-    getEarliestWeightMeasurementSince(babyId, weekStart.toISOString()),
+    getLastWeightMeasurementInRange(babyId, lastWeekStart.toISOString(), weekStart.toISOString()),
   ]);
-  setState({ babyInfo: { baby, latestWeight, weekBaselineWeight, weekEarliestWeight, weekStart } });
+  setState({ babyInfo: { baby, latestWeight, weekBaselineWeight, weekStart } });
 }
 
 // "Kérdések" doboz adatai — babaváltáskor újra kell tölteni.
