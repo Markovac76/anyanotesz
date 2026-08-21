@@ -16,8 +16,16 @@ const state = {
   activeBabyId: null,
   babyPickerOpen: false,
 
-  // owner/admin: függőben lévő kérelmek a saját babáihoz
+  // globális owner-e (profiles.is_owner) — kizárólag manuális SQL-lel
+  // állítható, lásd 0005_owner_model.sql. Nem baba-specifikus.
+  isOwner: false,
+
+  // baba-szintű admin: függőben lévő kérelmek a saját babáihoz
   pendingRequests: [],
+
+  // "Userek" oldal: owner globális áttekintője (minden baba + tagjaik)
+  usersOverview: null, // [{ id, nickname, full_name, baby_members: [...] }] | null
+  usersOverviewTab: "own", // "own" | "owner" — csak ha isOwner és van saját tagsága is
 
   // Gyerek-doboz (mindig látható infósáv, 5. pont): baba alapadatok,
   // legutóbbi súlymérés, a hét eleje előtti súly a gyarapodás-számításhoz.
@@ -38,8 +46,8 @@ const state = {
   questionsOpen: true,
   questions: [], // [{ id, text, recipient, answer, answered, created_at }]
 
-  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás oldal
-  view: "dashboard", // dashboard | history | graphs | maintenance
+  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás / Userek oldal
+  view: "dashboard", // dashboard | history | graphs | maintenance | users
   historyEntries: [],
   historyFilters: { feed: true, diaper: true, other: true, weight: true },
   historyEditing: null, // { type, id } | null

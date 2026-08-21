@@ -38,6 +38,9 @@ supabase.auth.onAuthStateChange((event) => {
       memberships: [],
       activeBabyId: null,
       pendingRequests: [],
+      isOwner: false,
+      usersOverview: null,
+      usersOverviewTab: "own",
     });
   }
 });

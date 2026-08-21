@@ -4,7 +4,7 @@ import {
   createBaby,
   createMembership,
   getMyMemberships,
-  getPendingRequestsForOwner,
+  getPendingRequestsForAdminBabies,
   approveMembership,
   rejectMembership,
 } from "./data.js";
@@ -48,8 +48,8 @@ export async function joinOrCreateBaby({ userId, nickname, fullName }) {
   }
 
   const baby = await createBaby({ nickname, full_name: fullName });
-  // Az első tag (nincs ki jóváhagyná) automatikusan jóváhagyott owner lesz.
-  await createMembership({ babyId: baby.id, userId, role: "owner", status: "approved" });
+  // Az első tag (nincs ki jóváhagyná) automatikusan jóváhagyott admin lesz.
+  await createMembership({ babyId: baby.id, userId, role: "admin", status: "approved" });
   return { status: "approved", baby };
 }
 
@@ -65,8 +65,8 @@ export async function resolveUserStatus(userId) {
   return { status: "needs-registration", memberships: [] };
 }
 
-export async function loadPendingRequests(userId) {
-  return await getPendingRequestsForOwner(userId);
+export async function loadPendingRequests(adminBabyIds) {
+  return await getPendingRequestsForAdminBabies(adminBabyIds);
 }
 
 export async function approveRequest(babyId, userId, currentUserId) {

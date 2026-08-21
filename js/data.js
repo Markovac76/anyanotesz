@@ -65,12 +65,74 @@ export async function getMyMemberships(userId) {
   return data ?? [];
 }
 
-export async function getPendingRequestsForOwner(userId) {
+// ---- Globális owner (profiles.is_owner) ----
+
+export async function getMyProfile(userId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, is_owner")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Owner globális áttekintője: minden baba, mindegyikhez a tagságai
+// (role/status/user_id) — a babies_select_authenticated policy mindenkinek
+// nyitott, a baby_members_select policy pedig globális owner-nek is
+// engedi a SELECT-et (lásd 0005_owner_model.sql).
+export async function getAllBabiesOverview() {
+  const { data, error } = await supabase
+    .from("babies")
+    .select("id, nickname, full_name, baby_members(user_id, role, status)")
+    .order("nickname");
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function promoteToAdmin(babyId, userId) {
+  const { error } = await supabase
+    .from("baby_members")
+    .update({ role: "admin" })
+    .eq("baby_id", babyId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+export async function demoteToUser(babyId, userId) {
+  const { error } = await supabase
+    .from("baby_members")
+    .update({ role: "user" })
+    .eq("baby_id", babyId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+export async function deleteBaby(babyId) {
+  const { error } = await supabase.from("babies").delete().eq("id", babyId);
+  if (error) throw error;
+}
+
+// Saját tagság törlése (admin lemondása a babáról, vagy sima kilépés).
+export async function leaveBaby(babyId, userId) {
+  const { error } = await supabase
+    .from("baby_members")
+    .delete()
+    .eq("baby_id", babyId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+// Csak azokra a babákra szűkítve, amelyeknél a hívó admin — enélkül egy
+// globális owner-nél (aki most már RLS-szinten is lát minden pending sort)
+// idegen babák kérelmei is bekeverednének a dashboard inline kártyájába.
+export async function getPendingRequestsForAdminBabies(babyIds) {
+  if (babyIds.length === 0) return [];
   const { data, error } = await supabase
     .from("baby_members")
     .select("baby_id, user_id, role, created_at, baby:babies(id, nickname)")
     .eq("status", "pending")
-    .neq("user_id", userId);
+    .in("baby_id", babyIds);
   if (error) throw error;
   return data ?? [];
 }

@@ -1,11 +1,12 @@
 // Session-átmenetek: eldönti, hogy egy (friss vagy visszatérő) bejelentkezés
 // után melyik képernyőt kell mutatni, és betölti hozzá a szükséges adatokat.
 import { supabase } from "./supabase-client.js";
-import { setState } from "./state.js";
+import { getState, setState } from "./state.js";
 import { resolveUserStatus, loadPendingRequests } from "./auth.js";
 import {
   ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
   getLatestWeightMeasurement, getLastWeightMeasurementInRange,
+  getMyProfile, getAllBabiesOverview,
 } from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
@@ -13,12 +14,17 @@ import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } 
 export async function enterSession(session) {
   setState({ session });
 
-  const result = await resolveUserStatus(session.user.id);
+  const [profile, result] = await Promise.all([
+    getMyProfile(session.user.id),
+    resolveUserStatus(session.user.id),
+  ]);
+  const isOwner = !!profile?.is_owner;
+  setState({ isOwner });
 
   if (result.status === "dashboard") {
     const memberships = result.memberships;
-    const isOwnerOrAdmin = memberships.some((m) => m.role === "owner" || m.role === "admin");
-    const pendingRequests = isOwnerOrAdmin ? await loadPendingRequests(session.user.id) : [];
+    const adminBabyIds = memberships.filter((m) => m.role === "admin").map((m) => m.baby.id);
+    const pendingRequests = adminBabyIds.length > 0 ? await loadPendingRequests(adminBabyIds) : [];
     const activeBabyId = memberships[0].baby.id;
     setState({
       status: "dashboard",
@@ -36,15 +42,45 @@ export async function enterSession(session) {
     return;
   }
 
+  // Globális owner-nek, akinek nincs egyetlen jóváhagyott (vagy függőben
+  // lévő) baba-tagsága sem, nincs saját dashboardja, amit mutathatnánk —
+  // egyenesen a globális Userek/owner-áttekintőre landol.
+  if (isOwner) {
+    setState({
+      status: "dashboard",
+      memberships: [],
+      activeBabyId: null,
+      pendingRequests: [],
+      view: "users",
+      usersOverviewTab: "owner",
+    });
+    await openUsers();
+    return;
+  }
+
   setState({ status: "needs-baby" });
 }
 
 export async function refreshPendingRequests() {
-  const { data } = await supabase.auth.getSession();
-  const session = data.session;
-  if (!session) return;
-  const pendingRequests = await loadPendingRequests(session.user.id);
+  const st = getState();
+  const adminBabyIds = st.memberships.filter((m) => m.role === "admin").map((m) => m.baby.id);
+  const pendingRequests = adminBabyIds.length > 0 ? await loadPendingRequests(adminBabyIds) : [];
   setState({ pendingRequests });
+}
+
+// "Userek" oldal megnyitása/bezárása. A getAllBabiesOverview() minden babát
+// visszaad, de a beágyazott baby_members sorokat az RLS szűkíti: egy sima
+// baba-admin csak a saját babái teljes taglistáját látja benne, a globális
+// owner pedig mindegyikét — így ugyanaz a lekérdezés szolgálja ki mindkét
+// fület ("Saját babák" / "Minden felhasználó").
+export async function openUsers() {
+  setState({ view: "users" });
+  const usersOverview = await getAllBabiesOverview();
+  setState({ usersOverview });
+}
+
+export function closeUsers() {
+  setState({ view: "dashboard" });
 }
 
 // "Egyéb" doboz adatai (ismétlődő teendők sablonjai + legutóbbi naplózásaik) —
@@ -141,5 +177,8 @@ export async function exitSession() {
     activeBabyId: null,
     pendingRequests: [],
     babyPickerOpen: false,
+    isOwner: false,
+    usersOverview: null,
+    usersOverviewTab: "own",
   });
 }

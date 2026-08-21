@@ -2,11 +2,12 @@
 import { getState, setState } from "./state.js";
 import { signIn, signUpAccount, joinOrCreateBaby, approveRequest, rejectRequest } from "./auth.js";
 import { findBabyByNickname } from "./data.js";
-import { enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance } from "./session.js";
+import { enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance, openUsers } from "./session.js";
 import { buildWeightCard, buildFeedCard, buildDiaperCard, buildOtherCard, buildQuestionsCard } from "./function-cards.js";
 import { buildHistoryPage } from "./history-page.js";
 import { buildGraphsPage } from "./graphs-page.js";
 import { buildMaintenancePage } from "./maintenance-page.js";
+import { buildUsersPage } from "./users-page.js";
 import { buildHeroCard } from "./hero-card.js";
 import { triggerUpdate, applyUpdate } from "./sw-update.js";
 
@@ -195,7 +196,7 @@ function buildBabyStepScreen() {
 
   function renderNicknameStep() {
     stepArea.innerHTML = "";
-    stepArea.appendChild(h("div", { className: "field-hint", text: "Ha már van ilyen becenevű baba, csatlakozási kérelmet küldünk az owner-nek. Ha nincs, te leszel az első tagja (és owner-je)." , style: { marginBottom: "12px" } }));
+    stepArea.appendChild(h("div", { className: "field-hint", text: "Ha már van ilyen becenevű baba, csatlakozási kérelmet küldünk a babához tartozó admin(ok)nak. Ha nincs, te leszel az első tagja (és admin-ja)." , style: { marginBottom: "12px" } }));
     stepArea.appendChild(nickname.wrap);
 
     const nextBtn = h("button", { className: "btn btn-primary", text: "Tovább" });
@@ -222,7 +223,7 @@ function buildBabyStepScreen() {
     stepArea.innerHTML = "";
     stepArea.appendChild(h("div", {
       className: "auth-note",
-      text: `Van már "${baby.nickname}" nevű baba a rendszerben${baby.full_name ? ` (${baby.full_name})` : ""}. A csatlakozásodat az owner-nek jóvá kell hagynia.`,
+      text: `Van már "${baby.nickname}" nevű baba a rendszerben${baby.full_name ? ` (${baby.full_name})` : ""}. A csatlakozásodat egy admin-nak jóvá kell hagynia.`,
     }));
 
     const backBtn = h("button", { className: "btn btn-secondary", text: "‹ Vissza", style: { marginBottom: "8px" } });
@@ -251,7 +252,7 @@ function buildBabyStepScreen() {
     stepArea.innerHTML = "";
     stepArea.appendChild(h("div", {
       className: "auth-note",
-      text: `Nincs még "${nicknameValue}" nevű baba — létrehozod, és automatikusan owner leszel.`,
+      text: `Nincs még "${nicknameValue}" nevű baba — létrehozod, és automatikusan admin leszel.`,
     }));
 
     const fullName = makeInput({ label: "Baba teljes neve (opcionális)" });
@@ -290,7 +291,7 @@ function buildPendingScreen() {
   const card = h("div", { className: "pending-card" });
   card.appendChild(h("div", { className: "pending-icon", text: "⏳" }));
   card.appendChild(h("div", { className: "pending-title", text: "Várakozás jóváhagyásra" }));
-  card.appendChild(h("div", { className: "pending-text", text: "A csatlakozási kérelmedet még nem hagyta jóvá a baba owner-je. Amint jóváhagyja, itt automatikusan megjelenik az adatokhoz való hozzáférés." }));
+  card.appendChild(h("div", { className: "pending-text", text: "A csatlakozási kérelmedet még nem hagyta jóvá a baba egyik admin-ja sem. Amint jóváhagyja, itt automatikusan megjelenik az adatokhoz való hozzáférés." }));
   const logoutBtn = h("button", { className: "btn-link", text: "Kijelentkezés", style: { marginTop: "16px" } });
   logoutBtn.addEventListener("click", () => exitSession());
   card.appendChild(logoutBtn);
@@ -311,14 +312,18 @@ function buildIconBtn({ icon, label, emph, litUp, onClick }) {
 function buildDashboardScreen() {
   const st = getState();
   const shell = h("div", { className: "app-shell" });
+  const hasBaby = !!st.activeBabyId;
+  const isBabyAdmin = st.memberships.some((m) => m.role === "admin");
 
   const header = h("div", { className: "header" });
   const headerRow = h("div", { className: "header-row" });
   headerRow.appendChild(h("h1", { className: "header-title", text: "Anyanotesz" }));
-  headerRow.appendChild(buildIconBtn({
-    icon: "🔧", label: "Karbant.",
-    onClick: () => openMaintenance(st.activeBabyId),
-  }));
+  if (hasBaby) {
+    headerRow.appendChild(buildIconBtn({
+      icon: "🔧", label: "Karbant.",
+      onClick: () => openMaintenance(st.activeBabyId),
+    }));
+  }
   headerRow.appendChild(buildIconBtn({
     icon: "🔄", label: "Frissítés",
     litUp: st.updateAvailable,
@@ -326,9 +331,8 @@ function buildDashboardScreen() {
   }));
   headerRow.appendChild(buildIconBtn({ icon: "❓", label: "Súgó" }));
 
-  const isOwnerOrAdmin = st.memberships.some((m) => m.role === "owner" || m.role === "admin");
-  if (isOwnerOrAdmin) {
-    headerRow.appendChild(buildIconBtn({ icon: "👥", label: "Userek", emph: true }));
+  if (st.isOwner || isBabyAdmin) {
+    headerRow.appendChild(buildIconBtn({ icon: "👥", label: "Userek", emph: true, onClick: () => openUsers() }));
   }
 
   headerRow.appendChild(buildIconBtn({ icon: "🚪", label: "Kilépés", onClick: () => exitSession() }));
@@ -351,7 +355,7 @@ function buildDashboardScreen() {
 
   const main = h("main");
 
-  if (isOwnerOrAdmin && st.pendingRequests.length > 0) {
+  if (isBabyAdmin && st.pendingRequests.length > 0 && st.view === "dashboard") {
     main.appendChild(buildPendingRequestsCard(st));
   }
 
@@ -361,7 +365,9 @@ function buildDashboardScreen() {
     main.appendChild(buildGraphsPage(st));
   } else if (st.view === "maintenance") {
     main.appendChild(buildMaintenancePage(st));
-  } else {
+  } else if (st.view === "users") {
+    main.appendChild(buildUsersPage(st));
+  } else if (hasBaby) {
     const hero = buildHeroCard(st);
     if (hero) main.appendChild(hero);
     main.appendChild(buildWeightCard(st));
@@ -382,9 +388,8 @@ function buildDashboardScreen() {
 function buildBabyBar(st) {
   const activeMembership = st.memberships.find((m) => m.baby.id === st.activeBabyId) || st.memberships[0];
   const activeName = activeMembership?.baby?.nickname ?? "";
-  const isOwnerOrAdmin = st.memberships.some((m) => m.role === "owner" || m.role === "admin");
 
-  if (!isOwnerOrAdmin || st.memberships.length <= 1) {
+  if (st.memberships.length <= 1) {
     const bar = h("div", { className: "baby-bar" });
     bar.appendChild(h("span", { className: "baby-bar-name", text: activeName }));
     return bar;

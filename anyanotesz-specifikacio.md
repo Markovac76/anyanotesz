@@ -29,22 +29,22 @@ Env változók (`config.js`, nincs git-ben): `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 
 ## 2. Szerepkörök és jogosultság
 
-Háromszintű modell a Lapról Lapra mintájára: **owner / admin / user**.
+Kétszintű, baba-specifikus modell (**admin / user**) egy azon kívül eső, globális **owner**-szereppel.
 
-- Regisztráláskor mindenki alapból **user**.
-- Az **owner** látja a felhasználókat, és adminná léptetheti (vagy visszaléptetheti) őket.
-- **Owner és admin**: több babához is hozzáférhetnek, és tudnak köztük váltani.
-- **User**: pontosan egy jóváhagyott babához van kötve, nincs váltógomb, fixen a saját gyereke jelenik meg.
-- **Induló beállítás (MVP fókusz)**: 1 baba + 2 user (anya + apa). Az ikrek/több gyerek irány csak nyitva hagyott lehetőség az owner/admin szintű váltogatás miatt, de az első fejlesztési kör erre nem épít bonyolult UX-et.
+- **Owner** — globális tulajdonság (`profiles.is_owner`), nem baba-specifikus. Kizárólag közvetlenül Supabase-ben (SQL Editor / Table Editor) állítható be — az appban semmilyen felületen, gombbal vagy API-hívással nem módosítható ("safety switch"). Az owner látja az összes baba összes admin-ját és user-ét (globális áttekintő felület), de a napi adatokhoz (szoptatás, pelenke, súly, stb.) nem fér hozzá, hacsak ő maga is nem regisztrál userként/adminként egy babához, és azt egy admin jóvá nem hagyja — pontosan úgy, mint bárki más. Kivétel: admin nélkül maradt babánál jogosult admin-t kijelölni vagy törölni a babát (lásd lent).
+- **Admin** (baba-szintű) — regisztrációkor, ha valaki egy vadonatúj becenevű babát hoz létre, automatikusan admin + approved lesz (nincs jóváhagyási kör, ő az első). Egy admin jóváhagyhatja/elutasíthatja a saját babájához érkező kérelmeket, és léptethet más jóváhagyott user-t is adminná — egy babának lehet több admin-ja is. Egy admin több babához is regisztrálhat/csatlakozhat.
+- **User** (baba-szintű) — aki egy már létező becenevű babához regisztrál, userként kerül be, pending státusszal, amíg egy admin jóvá nem hagyja. Egy user is regisztrálhat/csatlakozhat több babához.
+- **Baba-választó a fejlécben**: nem a szerepkörtől függ, hanem attól, hogy a usernek hány jóváhagyott baba-tagsága van összesen (bármilyen szerepkörrel) — 2 vagy több esetén aktív.
+- **"Legalább egy admin" szabály**: ha egy baba egyetlen admin-ja lemond/kilép, a művelet nincs blokkolva, de egy figyelmeztetés előzi meg. Admin nélkül maradt babánál az owner globális felületén piros jelzés látszik, és az owner onnan tud (a) egy meglévő jóváhagyott user-t adminná kijelölni, vagy (b) törölni a babát.
 
 ### Regisztrációs folyamat
 
 1. Regisztrációkor meg kell adni egy **becenevet** a babának (nem a teljes nevet — elgépelés-kockázat csökkentése).
-2. Ha van már ilyen becenevű baba a rendszerben → a user csatlakozást kérhet hozzá. Az **owner hagyja jóvá**.
-3. Ha nincs ilyen becenevű baba → a user új babát vihet fel (becenév + teljes név). Ezt is az **owner hagyja jóvá**.
+2. Ha van már ilyen becenevű baba a rendszerben → a user csatlakozást kérhet hozzá, **user**+pending státusszal. Egy **admin hagyja jóvá**.
+3. Ha nincs ilyen becenevű baba → a user új babát vihet fel (becenév + teljes név), automatikusan **admin**+approved lesz.
 4. Amíg a kérelem függőben van, a user egy egyszerű **"Várakozás jóváhagyásra"** képernyőt lát, nem fér hozzá adatokhoz.
-5. Az ownernek a **Felhasználók** felületen egy **függőben lévő kérelmek** szekció mutatja az új kéréseket, jóváhagyó/elutasító gombbal.
-6. **Nincs email-értesítés** ehhez (Keep It Simple) — az owner belépéskor látja, ha van függő kérés.
+5. Az adminnak a **Userek** felületen egy **függőben lévő kérelmek** szekció mutatja a saját babájához érkező kéréseket, jóváhagyó/elutasító gombbal.
+6. **Nincs email-értesítés** ehhez (Keep It Simple) — az admin belépéskor látja, ha van függő kérés.
 
 ---
 
@@ -65,15 +65,25 @@ create table babies (
 );
 
 -- Felhasználó–baba kapcsolat, jogosultsággal és jóváhagyási állapottal
+-- (baba-szinten csak admin/user létezik — a globális owner a profiles
+-- táblában él, lásd 2. pont és supabase/migrations/0005_owner_model.sql)
 create table baby_members (
   baby_id uuid references babies(id) on delete cascade,
   user_id uuid references auth.users(id) on delete cascade,
-  role text default 'user' check (role in ('user','admin','owner')),
+  role text default 'user' check (role in ('admin','user')),
   status text default 'pending' check (status in ('pending','approved','rejected')),
   approved_by uuid references auth.users(id),
   approved_at timestamptz,
   created_at timestamptz default now(),
   primary key (baby_id, user_id)
+);
+
+-- Globális owner-flag — kizárólag manuális SQL-lel állítható, nincs hozzá
+-- RLS UPDATE policy (lásd 2. pont)
+create table profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  is_owner boolean not null default false,
+  created_at timestamptz default now()
 );
 
 -- Ruhátlan testsúlymérés — ez adja a súlygörbe és a heti gyarapodás alapját
@@ -157,11 +167,10 @@ Minden táblán **Row Level Security** aktív; a policy-k a `baby_members` tábl
 ## 4. Fejléc és navigáció
 
 - App név: **Anyanotesz**
-- Gombok: **Karbantartás**, **Súgó**, **Kilépés** (mindenkinek), **Felhasználók** (csak owner)
+- Gombok: **Karbantartás**, **Súgó**, **Kilépés** (mindenkinek, aki babához van kötve), **Userek** (owner-eknek és baba-adminoknak)
 - **Karbantartás**: baba alapadatok szerkesztése, gyógyszer-sablonok és tevékenység-sablonok kezelése (részletek a 6.6 pontban)
-- A "gyerek neve" sáv a fejléc alatt:
-  - **User**: fixen a saját gyereke neve, nincs váltás
-  - **Owner/admin**: gyerek-választó, amivel a hozzá tartozó babák között lehet váltani
+- **Userek**: babánként a saját (admin-i) babák pending kérelmei + tagjai, jóváhagyás/elutasítás/adminná-léptetés gombokkal ("Saját babák"); globális owner-nek emellett egy "Owner nézet" fül minden babával, admin nélkül maradt babák piros jelzésével és vészhelyzeti admin-kijelölés/baba-törlés gombokkal. Ha az owner-nek nincs egyetlen saját baba-tagsága sem, egyenesen ez a nézet a kezdőképernyője.
+- A "gyerek neve" sáv a fejléc alatt: a baba-választó attól függ, hány jóváhagyott baba-tagsága van a usernek (2 vagy több esetén aktív), nem a szerepkörétől.
 
 ---
 
@@ -269,7 +278,7 @@ Mindhárom diagramnál azonos navigációs minta: bal/jobb nyíl a léptetéshez
 |---|---|
 | Excel export | "Fejlesztés alatt" üzenet — sem letöltés, sem email-küldés nincs az MVP-ben |
 | Push notification | Nincs — az emlékeztetők egyelőre csak in-app jelzések |
-| Ikrek / 3+ gyerek UX finomítása | Az owner/admin váltogatás technikailag megvan, de nincs rá külön kidolgozott folyamat |
+| Ikrek / 3+ gyerek UX finomítása | A több baba közti váltogatás technikailag megvan (2+ jóváhagyott tagságtól bárkinek), de nincs rá külön kidolgozott folyamat |
 | Jelszó/kód mező "megmutatás" funkciója | A regisztrációs és bejelentkezési mezőknél (pl. jelszó) legyen egy szem-ikon vagy hasonló, amivel meg lehet nézni, mit gépeltünk be — jelenleg vakon kell gépelni, elgépelés esetén nincs mód ellenőrizni/javítani |
 
 ---
