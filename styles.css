@@ -1041,7 +1041,19 @@ main {
 .question-detail { padding: 0 12px 12px; }
 
 .new-question-row { display: flex; gap: 8px; }
-.new-question-row input { flex: 1; }
+.new-question-row input {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.new-question-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
 .new-question-add-btn {
   border-radius: 12px;
