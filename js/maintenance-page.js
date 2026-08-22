@@ -7,7 +7,7 @@
 import { setState } from "./state.js";
 import { createDateField, createTimeField } from "./datetime-picker.js";
 import { createNumberField, createToggleGroup } from "./fields.js";
-import { updateBaby, createCareTemplate, updateCareTemplate, deleteCareTemplate } from "./data.js";
+import { updateBaby, createCareTemplate, updateCareTemplate, deleteCareTemplate, requestBackupEmail } from "./data.js";
 import { closeMaintenance, refreshCareData } from "./session.js";
 import { showInlineError } from "./ui-helpers.js";
 
@@ -49,6 +49,12 @@ export function buildMaintenancePage(st) {
   }
 
   wrap.appendChild(buildBabyEditCard(st));
+
+  const activeMembership = st.memberships.find((m) => m.baby.id === st.activeBabyId);
+  if (activeMembership?.role === "admin") {
+    wrap.appendChild(buildBackupCard(st.activeBabyId));
+  }
+
   wrap.appendChild(buildTemplateListCard({
     title: "Gyógyszer sablonok", icon: "💊", color: "var(--pink)", category: "medication",
     templates: st.careTemplates.filter((t) => t.category === "medication"),
@@ -132,6 +138,43 @@ function buildBabyEditCard(st) {
     }
   });
   card.append(saveBtn, status);
+
+  return card;
+}
+
+// ---- Biztonsági mentés emailben (6.7 pont) ----
+// Minden nap éjjel automatikusan készül egy Excel-mentés minden babáról
+// (daily-backup Edge Function, lásd supabase/functions/), 30 napos
+// megőrzéssel. Ez a gomb a legutóbbi (mai) mentést kéri el emailben — a
+// send-backup-email Edge Function ellenőrzi, hogy a hívó tényleg admin-e
+// ennél a babánál (is_approved_admin RPC), utána a baba összes jóváhagyott
+// adminjának emailjére kiküldi csatolmányként.
+
+function buildBackupCard(babyId) {
+  const card = h("div", { className: "card" });
+  card.appendChild(h("h3", { text: "Biztonsági mentés", style: { fontFamily: "var(--font-display)", fontSize: "15px", fontWeight: "700", margin: "0 0 8px" } }));
+  card.appendChild(h("div", { className: "field-hint", text: "Minden éjjel automatikusan készül egy Excel-mentés erről a babáról. Itt bármikor kikérheted emailben a legutóbbit — az összes admin megkapja.", style: { marginBottom: "10px" } }));
+
+  const status = h("div", { className: "save-status" });
+  const requestBtn = h("button", { className: "btn btn-secondary", text: "Legutóbbi mentés emailben kérése" });
+  requestBtn.addEventListener("click", async () => {
+    requestBtn.disabled = true;
+    requestBtn.textContent = "Küldés…";
+    status.textContent = "";
+    status.className = "save-status";
+    try {
+      const result = await requestBackupEmail(babyId);
+      status.textContent = `Elküldve: ${result.sentTo.join(", ")}`;
+      status.className = "save-status success";
+    } catch (e) {
+      status.textContent = e.message;
+      status.className = "save-status error";
+    } finally {
+      requestBtn.disabled = false;
+      requestBtn.textContent = "Legutóbbi mentés emailben kérése";
+    }
+  });
+  card.append(requestBtn, status);
 
   return card;
 }

@@ -1,0 +1,9 @@
+# A daily-backup függvényt kizárólag a pg_cron ütemezés hívja, saját
+# BACKUP_CRON_SECRET titokkal (nem Supabase user JWT-vel) — ezért ki kell
+# kapcsolni a platform alapértelmezett JWT-ellenőrzését, különben a
+# Supabase gateway a saját ellenőrzésünk előtt elutasítaná a kérést.
+# A send-backup-email-nél viszont MEG KELL maradnia a JWT-ellenőrzésnek
+# (ez az alapértelmezett, nincs itt felsorolva), mert azt egy bejelentkezett
+# admin hívja a böngészőből.
+[functions.daily-backup]
+verify_jwt = false

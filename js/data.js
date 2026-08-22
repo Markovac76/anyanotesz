@@ -400,3 +400,15 @@ export async function updateQuestion(id, patch) {
   const { error } = await supabase.from("questions").update(patch).eq("id", id);
   if (error) throw error;
 }
+
+// ---- Biztonsági mentés (6.7 pont) ----
+// A napi Excel-mentéseket a daily-backup Edge Function készíti (Storage,
+// supabase/functions/daily-backup) — ez a hívás csak a legutóbbi mentés
+// emailben való kikérését kéri a send-backup-email Edge Function-től.
+export async function requestBackupEmail(babyId) {
+  const { data, error } = await supabase.functions.invoke("send-backup-email", {
+    body: { babyId },
+  });
+  if (error) throw error;
+  return data;
+}
