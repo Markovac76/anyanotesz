@@ -254,6 +254,20 @@ A fejlécben lévő Karbantartás gomb egy külön oldalra navigál, három szek
 
 Mind a gyógyszer, mind a tevékenység listák megjelenítése és szerkesztése egységes UI-t követ (Keep It Simple), csak külön szekcióban jelennek meg, hogy logikailag elkülönüljenek.
 
+### 6.7 Napi biztonsági mentés
+
+Minden nap este (kb. 21:00 UTC, magyar idő szerint nyáron 23:00, télen 22:00) egy `pg_cron` ütemezés meghívja a `daily-backup` Edge Function-t, ami minden babáról generál egy Excel munkafüzetet (5 munkalap: Testsúlymérés, Szoptatás, Pelenkacsere, Egyéb, Kérdések — magyar oszlopfejlécekkel, olvasható dátumformátummal), és feltölti egy privát Supabase Storage bucket-be (`baby-backups/{baby_id}/{ÉÉÉÉ-HH-NN}.xlsx`, felülírással, ha aznap már futott). A 30 napnál régebbi mentések automatikusan törlődnek. Egy baba hibája nem állítja meg a többi feldolgozását — a függvény egy összesítő választ ad vissza (`succeeded`/`failed`/`errors`).
+
+A Karbantartás oldalon, **csak admin szerepkörnél**, egy "Biztonsági mentés" szekció jelenik meg egy "Legutóbbi mentés emailben kérése" gombbal. Ez a `send-backup-email` Edge Function-t hívja (`supabase.functions.invoke`), ami:
+- a hívó saját JWT-jével ellenőrzi (`is_approved_admin` RPC), hogy tényleg admin-e az adott babánál,
+- lekérdezi a baba összes jóváhagyott adminjának emailjét,
+- csak ezután, service role-lal tölti le a legutóbbi mentést a Storage-ból (a kettő szándékosan külön: a jogosultság-ellenőrzés a hívó saját jogán történik, a fájl-olvasás egy már ellenőrzött művelet service role-lal),
+- Gmail SMTP-n (alkalmazás-jelszóval, `nodemailer`) elküldi csatolmányként minden adminnak.
+
+**Adatbázis:** `is_approved_admin(baby_id)` (admin+approved szűrésű, `is_approved_member`-hez hasonló security definer függvény), `baby-backups` Storage bucket (privát), egyetlen `SELECT` policy (`is_approved_admin`-ra szűkítve) — kliens-oldali `INSERT`/`UPDATE`/`DELETE` szándékosan nincs, a mentések kizárólag a service role-lal futó Edge Function-ön keresztül íródnak/törlődnek. Migráció: `0009_baby_backups.sql`.
+
+**Ütemezés:** `pg_cron` + `pg_net`, a cron-hívás hitelesítése egy `BACKUP_CRON_SECRET` megosztott titokkal (Supabase Vault-ban tárolva, nem a migrációs fájlban — az git-history-ba kerülne).
+
 ---
 
 ## 7. Dátum/idő és szám-bevitel (egykezes UX minden mezőnél)
