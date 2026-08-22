@@ -16,6 +16,14 @@ const state = {
   activeBabyId: null,
   babyPickerOpen: false,
 
+  // a bejelentkezett user MÁSIK babákhoz küldött, még jóvá nem hagyott
+  // kérelmei — a baba-választóban egy nem-kattintható, "(várakozás
+  // jóváhagyásra)" feliratú sorként jelennek meg. Szándékosan külön
+  // mezőben, nem a memberships-ben, hogy a memberships-re épülő meglévő
+  // logika (aktív baba, admin-ellenőrzés, stb.) ne kelljen státusz szerint
+  // szűrögetni mindenhol.
+  pendingMemberships: [], // [{ baby, role, status }]
+
   // globális owner-e (profiles.is_owner) — kizárólag manuális SQL-lel
   // állítható, lásd 0005_owner_model.sql. Nem baba-specifikus.
   isOwner: false,
@@ -51,8 +59,8 @@ const state = {
   questionsOpen: true,
   questions: [], // [{ id, text, recipient, answer, answered, created_at }]
 
-  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás / Userek / Súgó oldal
-  view: "dashboard", // dashboard | history | graphs | maintenance | users | help
+  // Dashboard vs. Historikus adatok / Grafikonok / Karbantartás / Userek / Súgó / baba hozzáadása oldal
+  view: "dashboard", // dashboard | history | graphs | maintenance | users | help | add-baby
   historyEntries: [],
   historyFilters: { feed: true, diaper: true, other: true, weight: true },
   historyEditing: null, // { type, id } | null

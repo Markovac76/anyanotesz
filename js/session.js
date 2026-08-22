@@ -6,7 +6,7 @@ import { resolveUserStatus, loadPendingRequests } from "./auth.js";
 import {
   ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
   getLatestWeightMeasurement, getLastWeightMeasurementInRange,
-  getMyProfile, getOwnBabiesOverview, getOwnerBabiesOverview,
+  getMyProfile, getOwnBabiesOverview, getOwnerBabiesOverview, getMyMemberships,
 } from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
@@ -29,6 +29,7 @@ export async function enterSession(session) {
     setState({
       status: "dashboard",
       memberships,
+      pendingMemberships: result.pending,
       activeBabyId,
       pendingRequests,
       view: "dashboard",
@@ -182,6 +183,46 @@ export function closeHelp() {
   setState({ view: "dashboard" });
 }
 
+// "Másik baba hozzáadása" oldal megnyitása/bezárása — a felhasználónak
+// már van legalább egy jóváhagyott baba-tagsága, ez csak egy továbbit ad
+// hozzá, ezért soha nem érinti a globális st.status-t.
+export function openAddBaby() {
+  setState({ view: "add-baby", babyPickerOpen: false });
+}
+
+export function closeAddBaby() {
+  setState({ view: "dashboard" });
+}
+
+// A joinOrCreateBaby() eredményét dolgozza fel, amikor a userNEK MÁR VAN
+// legalább egy jóváhagyott babája (tehát ez nem az első regisztráció) —
+// ezért itt sosem állítjuk a globális st.status-t "pending"-re, csak a
+// memberships/pendingMemberships listákat frissítjük.
+export async function handleAddBabyResult(result) {
+  const st = getState();
+  const userId = st.session.user.id;
+  const allMemberships = await getMyMemberships(userId);
+  setState({
+    memberships: allMemberships.filter((m) => m.status === "approved"),
+    pendingMemberships: allMemberships.filter((m) => m.status === "pending"),
+  });
+
+  if (result.status === "approved") {
+    // Új baba, azonnal admin — váltsunk is át rá.
+    await switchActiveBaby(result.baby.id);
+  } else {
+    // Csatlakozási kérelem egy meglévő babához — maradunk a jelenlegi
+    // aktív babán, csak visszajelzünk, hogy a kérelem elment.
+    setState({
+      view: "dashboard",
+      infoModal: {
+        title: "Kérelem elküldve",
+        message: "A kérelmed elküldve, egy admin-nak jóvá kell hagynia.",
+      },
+    });
+  }
+}
+
 export async function exitSession() {
   await supabase.auth.signOut();
   setState({
@@ -190,6 +231,7 @@ export async function exitSession() {
     session: null,
     authError: null,
     memberships: [],
+    pendingMemberships: [],
     activeBabyId: null,
     pendingRequests: [],
     babyPickerOpen: false,

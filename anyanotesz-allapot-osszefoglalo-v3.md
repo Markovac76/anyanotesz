@@ -33,6 +33,7 @@ A repóban a **`anyanotesz-specifikacio.md`** fájlt Claude Code menet közben m
 - ✅ Frissítés-kezelés: fejléc-gomb + automatikus alsó sáv, konzisztensen (a korábbi versenyhelyzet-hiba javítva)
 - ✅ Vercel deploy, config.js generálása build-időben env változóból (nem kerül git-be — mostantól a `SUPABASE_URL` is env-változó, lásd lent)
 - ✅ **Code-review kör (4. lépés)** — lásd külön szakasz lent: `babies` tábla adatszivárgás javítva RPC-kre való átállással, nickname-ütközés és numerikus range-check védelem DB-szinten, Grafikonok oldal csendes adat-levágásának javítása, `alert()` hívások lecserélve inline hibamegjelenítésre
+- ✅ **"Másik baba hozzáadása" (5. lépés)** — egy már jóváhagyott admin/user a fejléc baba-választójából ("+ Másik baba hozzáadása") bejelentkezett állapotban is felvehet/kérhet egy második (harmadik, stb.) babát, anélkül hogy a globális app-állapotot "várakozás jóváhagyásra"-ra állítaná — lásd külön szakasz lent
 
 ## A jogosultsági rendszer (fontos, mert menet közben teljesen átalakult)
 
@@ -41,12 +42,14 @@ Az eredeti terv (egyszerű owner/admin/user hierarchia babánként) helyett most
 - **Owner** — globális, nem baba-specifikus tulajdonság (`profiles.is_owner`). **Kizárólag Supabase-ben, kézzel állítható be** — az appban semmilyen felületen nem módosítható (tudatos "safety switch"). Jelenleg egyedül `g.marcell.kovacs@gmail.com` az owner. Az owner látja az **összes baba összes admin-ját és user-ét** egy globális "Owner nézet" fülön, de **nem fér hozzá egyetlen baba napi adataihoz SEM a bizalmas születési adataihoz** (dátum, hely, súly, hossz), hacsak ő maga is nem regisztrál oda és egy admin jóvá nem hagyja — kivéve admin nélkül maradt babánál, ahol vészhelyzeti jogköre van (admin kijelölése vagy a baba törlése).
 - **Admin** (baba-szintű) — aki elsőként regisztrál egy új becenevű babát, automatikusan admin+approved lesz. Egy admin jóváhagy/elutasít, és léptethet más usert is adminná (egy babának lehet több admin-ja).
 - **User** (baba-szintű) — aki egy már létező babához csatlakozik, pending státusszal vár admin-jóváhagyásra.
-- **Baba-váltó gomb** a fejlécben: nem szerepkörtől függ, hanem attól, hogy a usernek hány jóváhagyott baba-tagsága van (2+ esetén aktív).
+- **Baba-váltó gomb** a fejlécben: mindig kattintható (nem szerepkörtől vagy tagságszámtól függ) — "+ Másik baba hozzáadása" sorral és a pending kérelmek "(várakozás jóváhagyásra)" jelzésével (5. lépés).
 - **"Legalább egy admin" szabály**: ha az utolsó admin lemondana/kilépne, ez nincs blokkolva, csak figyelmeztet — az admin nélkül maradt babát az owner globális nézete piros jelzéssel mutatja.
 
 **Technikai megvalósítás:** `baby_members.role` mostantól csak `('admin','user')`; új `profiles` tábla (`is_owner` boolean, `email` — utóbbi egy auth.users-ből triggerrel szinkronizált denormalizált mező, mert az auth séma nem érhető el kliensből, és a Userek felület emailt jelenít meg, nem nyers user_id-t). Migrációk: `0005_owner_model.sql`, `0006_profile_emails.sql`.
 
 **4. lépés (code review) óta:** a `babies` tábla SELECT-je szigorúan csak jóváhagyott tagoknak nyitott (`0007_lock_babies_select.sql`) — korábban minden bejelentkezett user (és az owner is) hozzáférhetett bármelyik baba teljes sorához, beleértve a bizalmas születési adatokat. Ezt három SECURITY DEFINER RPC váltja ki: `search_baby_nickname()` (regisztrációs kereséshez, csak id+nickname), `create_baby()` (atomikusan hozza létre a babát+admin-tagságot), `owner_babies_overview()` (owner globális nézetéhez, csak id+nickname+full_name, SOHA nem ad vissza születési adatot). Közvetlen kliens-oldali `INSERT` a `babies` táblára nincs többé. Emellett: case-insensitive nickname-egyediség (`babies_nickname_unique_ci`) + versenyhelyzet-kezelés kliens oldalon (23505 hibakód → automatikus csatlakozás a race-győztes babához), és laza DB-szintű range-check-ek a numerikus mezőkön (súly, ml, stb.).
+
+**5. lépés ("Másik baba hozzáadása") óta:** a fejléc baba-választója mindig kattintható (nem csak 2+ tagságnál), és egy "+ Másik baba hozzáadása" sort mutat, ami egy új `view: "add-baby"` nézetet nyit (közös lépés-logika a `js/baby-step-shared.js`-ben, ugyanaz, mint az első regisztrációnál). Menet közben derült ki egy apró mellékhatás a 4. lépés RLS-szigorításából: egy PENDING (még jóvá nem hagyott) tagságnál a `baby_members.baby:babies(...)` beágyazott lekérdezés `null`-t adott vissza (a user még nem approved tag, a `babies_select_members` policy kizárja) — ezt egy új, minimális RPC-vel (`my_membership_baby_names()`, `0008_pending_baby_names.sql`) oldottuk fel: a hívó saját, bármilyen státuszú tagságai alapján adja vissza a nicknevet, más adathoz nem enged hozzáférést.
 
 ## Fontos technikai döntések / megoldott buktatók (ne felejtsük el)
 
@@ -65,7 +68,6 @@ Az eredeti terv (egyszerű owner/admin/user hierarchia babánként) helyett most
 |---|---|
 | Excel export | "Fejlesztés alatt" placeholder, sem letöltés, sem email nincs implementálva |
 | Push notification | Nincs, csak in-app jelzések (pl. köldökápolás, gyógyszer-emlékeztető) |
-| Ikrek / 3+ gyerek UX finomítása | A baba-váltó technikailag megvan (2+ jóváhagyott tagságtól bárkinek), de nincs rá külön kidolgozott folyamat |
 
 ## Hogyan folytassuk egy új chatben
 

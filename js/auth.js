@@ -71,14 +71,18 @@ export async function joinOrCreateBaby({ userId, nickname, fullName }) {
 
 // Eldönti, hogy egy bejelentkezett usernek dashboardot, "várakozás
 // jóváhagyásra" képernyőt, vagy a regisztráció folytatását kell mutatni.
+// A "pending" lista mindig visszajön (üresen is), hogy a dashboard baba-
+// választója meg tudja jeleníteni a MÁSIK babákhoz küldött, még jóvá nem
+// hagyott kérelmeket is — nem csak azt az egy esetet, amikor a usernek
+// EGYETLEN jóváhagyott tagsága sincs.
 export async function resolveUserStatus(userId) {
   const memberships = await getMyMemberships(userId);
   const approved = memberships.filter((m) => m.status === "approved");
-  const hasPending = memberships.some((m) => m.status === "pending");
+  const pending = memberships.filter((m) => m.status === "pending");
 
-  if (approved.length > 0) return { status: "dashboard", memberships: approved };
-  if (hasPending) return { status: "pending", memberships: [] };
-  return { status: "needs-registration", memberships: [] };
+  if (approved.length > 0) return { status: "dashboard", memberships: approved, pending };
+  if (pending.length > 0) return { status: "pending", memberships: [], pending };
+  return { status: "needs-registration", memberships: [], pending: [] };
 }
 
 export async function loadPendingRequests(adminBabyIds) {

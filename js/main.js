@@ -36,6 +36,7 @@ supabase.auth.onAuthStateChange((event) => {
       authMode: "login",
       session: null,
       memberships: [],
+      pendingMemberships: [],
       activeBabyId: null,
       pendingRequests: [],
       isOwner: false,

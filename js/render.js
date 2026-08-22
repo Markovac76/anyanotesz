@@ -1,8 +1,10 @@
 // DOM renderelés — build-eszköz nélküli, natív DOM-építő segédfüggvényekkel.
 import { getState, setState } from "./state.js";
-import { signIn, signUpAccount, joinOrCreateBaby, approveRequest, rejectRequest } from "./auth.js";
-import { findBabyByNickname } from "./data.js";
-import { enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance, openUsers, openHelp } from "./session.js";
+import { signIn, signUpAccount, approveRequest, rejectRequest } from "./auth.js";
+import {
+  enterSession, exitSession, refreshPendingRequests, switchActiveBaby, openHistory, openMaintenance,
+  openUsers, openHelp, openAddBaby, closeAddBaby, handleAddBabyResult,
+} from "./session.js";
 import { buildWeightCard, buildFeedCard, buildDiaperCard, buildOtherCard, buildQuestionsCard } from "./function-cards.js";
 import { buildHistoryPage } from "./history-page.js";
 import { buildGraphsPage } from "./graphs-page.js";
@@ -10,6 +12,7 @@ import { buildMaintenancePage } from "./maintenance-page.js";
 import { buildUsersPage } from "./users-page.js";
 import { buildHelpPage } from "./help-page.js";
 import { buildHeroCard } from "./hero-card.js";
+import { renderBabyStepFlow } from "./baby-step-shared.js";
 import { triggerUpdate, applyUpdate } from "./sw-update.js";
 
 function h(tag, opts = {}, children = []) {
@@ -203,104 +206,41 @@ function buildBabyStepScreen() {
   card.appendChild(h("div", { className: "auth-logo", text: "Anyanotesz" }));
   card.appendChild(h("div", { className: "auth-sub", text: "Melyik babához tartozol?" }));
 
-  const errorWrap = h("div");
-  const stepArea = h("div");
-  card.append(errorWrap, stepArea);
+  const st = getState();
+  renderBabyStepFlow({
+    container: card,
+    userId: st.session.user.id,
+    onResult: async (result) => {
+      if (result.status === "pending") setState({ status: "pending" });
+      else await enterSession(st.session);
+    },
+  });
 
-  function showError(msg) {
-    errorWrap.innerHTML = "";
-    if (msg) errorWrap.appendChild(h("div", { className: "auth-error", text: msg }));
-  }
-
-  const nickname = makeInput({ label: "Baba beceneve", placeholder: "pl. Maci" });
-
-  function renderNicknameStep() {
-    stepArea.innerHTML = "";
-    stepArea.appendChild(h("div", { className: "field-hint", text: "Ha már van ilyen becenevű baba, csatlakozási kérelmet küldünk a babához tartozó admin(ok)nak. Ha nincs, te leszel az első tagja (és admin-ja)." , style: { marginBottom: "12px" } }));
-    stepArea.appendChild(nickname.wrap);
-
-    const nextBtn = h("button", { className: "btn btn-primary", text: "Tovább" });
-    nextBtn.addEventListener("click", async () => {
-      const value = nickname.input.value.trim();
-      if (!value) { showError("Add meg a baba becenevét."); return; }
-      showError(null);
-      nextBtn.disabled = true;
-      nextBtn.textContent = "Keresés…";
-      try {
-        const existing = await findBabyByNickname(value);
-        if (existing) renderConfirmJoinStep(value, existing);
-        else renderConfirmCreateStep(value);
-      } catch (e) {
-        showError(e.message);
-        nextBtn.disabled = false;
-        nextBtn.textContent = "Tovább";
-      }
-    });
-    stepArea.appendChild(nextBtn);
-  }
-
-  function renderConfirmJoinStep(nicknameValue, baby) {
-    stepArea.innerHTML = "";
-    stepArea.appendChild(h("div", {
-      className: "auth-note",
-      text: `Van már "${baby.nickname}" nevű baba a rendszerben${baby.full_name ? ` (${baby.full_name})` : ""}. A csatlakozásodat egy admin-nak jóvá kell hagynia.`,
-    }));
-
-    const backBtn = h("button", { className: "btn btn-secondary", text: "‹ Vissza", style: { marginBottom: "8px" } });
-    backBtn.addEventListener("click", renderNicknameStep);
-
-    const submitBtn = h("button", { className: "btn btn-primary", text: "Csatlakozási kérelem küldése" });
-    submitBtn.addEventListener("click", async () => {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Küldés…";
-      try {
-        const st = getState();
-        const result = await joinOrCreateBaby({ userId: st.session.user.id, nickname: nicknameValue });
-        if (result.status === "pending") setState({ status: "pending" });
-        else await enterSession(st.session);
-      } catch (e) {
-        showError(e.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Csatlakozási kérelem küldése";
-      }
-    });
-
-    stepArea.append(backBtn, submitBtn);
-  }
-
-  function renderConfirmCreateStep(nicknameValue) {
-    stepArea.innerHTML = "";
-    stepArea.appendChild(h("div", {
-      className: "auth-note",
-      text: `Nincs még "${nicknameValue}" nevű baba — létrehozod, és automatikusan admin leszel.`,
-    }));
-
-    const fullName = makeInput({ label: "Baba teljes neve (opcionális)" });
-    stepArea.appendChild(fullName.wrap);
-
-    const backBtn = h("button", { className: "btn btn-secondary", text: "‹ Vissza", style: { marginBottom: "8px" } });
-    backBtn.addEventListener("click", renderNicknameStep);
-
-    const submitBtn = h("button", { className: "btn btn-primary", text: "Baba létrehozása" });
-    submitBtn.addEventListener("click", async () => {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Létrehozás…";
-      try {
-        const st = getState();
-        await joinOrCreateBaby({ userId: st.session.user.id, nickname: nicknameValue, fullName: fullName.input.value });
-        await enterSession(st.session);
-      } catch (e) {
-        showError(e.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Baba létrehozása";
-      }
-    });
-
-    stepArea.append(backBtn, submitBtn);
-  }
-
-  renderNicknameStep();
   wrap.appendChild(card);
+  return wrap;
+}
+
+// ---- "Másik baba hozzáadása" — bejelentkezett állapotban, ha a usernek
+// már van legalább egy jóváhagyott baba-tagsága (lásd session.js
+// openAddBaby/handleAddBabyResult) ----
+
+function buildAddBabyPage(st) {
+  const wrap = h("div");
+
+  const headRow = h("div", { className: "history-head-row" });
+  const backBtn = h("button", { className: "back-btn", onClick: () => closeAddBaby() });
+  backBtn.append(h("span", { text: "←" }), h("span", { text: "Vissza" }));
+  headRow.append(backBtn, h("h2", { className: "history-title", text: "Másik baba hozzáadása" }));
+  wrap.appendChild(headRow);
+
+  const card = h("div", { className: "card" });
+  renderBabyStepFlow({
+    container: card,
+    userId: st.session.user.id,
+    onResult: (result) => handleAddBabyResult(result),
+  });
+  wrap.appendChild(card);
+
   return wrap;
 }
 
@@ -389,6 +329,8 @@ function buildDashboardScreen() {
     main.appendChild(buildUsersPage(st));
   } else if (st.view === "help") {
     main.appendChild(buildHelpPage());
+  } else if (st.view === "add-baby") {
+    main.appendChild(buildAddBabyPage(st));
   } else if (hasBaby) {
     const hero = buildHeroCard(st);
     if (hero) main.appendChild(hero);
@@ -407,21 +349,19 @@ function buildDashboardScreen() {
   return shell;
 }
 
+// A baba-sáv mindig kattintható (nem csak 2+ tagságnál) — a lenyíló
+// listában a "+ Másik baba hozzáadása" sor ekkor is elérhető, hogy egy
+// eddig egy-babás user is fel tudjon venni/csatlakozni tudjon egy
+// másodikhoz (pl. ikrek, második gyerek).
 function buildBabyBar(st) {
   const activeMembership = st.memberships.find((m) => m.baby.id === st.activeBabyId) || st.memberships[0];
   const activeName = activeMembership?.baby?.nickname ?? "";
-
-  if (st.memberships.length <= 1) {
-    const bar = h("div", { className: "baby-bar" });
-    bar.appendChild(h("span", { className: "baby-bar-name", text: activeName }));
-    return bar;
-  }
 
   const wrap = h("div", { className: "baby-picker" });
   const btn = h("button", { className: "baby-picker-btn" });
   btn.appendChild(h("span", { className: "baby-bar-name", text: activeName }));
   const hint = h("span", { className: "baby-picker-hint" });
-  hint.appendChild(h("span", { text: `${st.memberships.length} gyerek` }));
+  if (st.memberships.length > 1) hint.appendChild(h("span", { text: `${st.memberships.length} gyerek` }));
   hint.appendChild(h("span", { text: "⌄" }));
   btn.appendChild(hint);
   btn.addEventListener("click", () => setState({ babyPickerOpen: !st.babyPickerOpen }));
@@ -437,6 +377,17 @@ function buildBabyBar(st) {
       });
       list.appendChild(item);
     });
+    st.pendingMemberships.forEach((m) => {
+      list.appendChild(h("div", {
+        className: "baby-picker-item pending",
+        text: `${m.baby.nickname} (várakozás jóváhagyásra)`,
+      }));
+    });
+    list.appendChild(h("button", {
+      className: "baby-picker-item add-baby",
+      text: "+ Másik baba hozzáadása",
+      onClick: () => openAddBaby(),
+    }));
     wrap.appendChild(list);
   }
 

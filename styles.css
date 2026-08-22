@@ -238,6 +238,18 @@ button {
   background: color-mix(in srgb, var(--accent) 30%, var(--panel-2));
 }
 
+.baby-picker-item.pending {
+  color: var(--muted);
+  font-style: italic;
+  cursor: default;
+}
+
+.baby-picker-item.add-baby {
+  color: var(--accent);
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+}
+
 /* ---- Main / cards ---- */
 main {
   padding: 0 12px 32px;

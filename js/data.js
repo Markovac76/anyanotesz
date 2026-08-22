@@ -59,13 +59,30 @@ export async function createMembership({ babyId, userId, role, status }) {
   return data;
 }
 
+// A beágyazott baby:babies(...) select a babies_select_members policy
+// (0007_lock_babies_select.sql) miatt csak jóváhagyott tagságnál ad
+// vissza babát — egy PENDING sornál a beágyazás null-t adna, hiszen a
+// user még nem approved tagja annak a babának. Ilyenkor a
+// my_membership_baby_names() RPC-vel (0008_pending_baby_names.sql)
+// pótoljuk a nicknevet a saját (bármilyen státuszú) tagságok alapján.
 export async function getMyMemberships(userId) {
   const { data, error } = await supabase
     .from("baby_members")
-    .select("role, status, baby:babies(id, nickname, full_name)")
+    .select("role, status, baby_id, baby:babies(id, nickname, full_name)")
     .eq("user_id", userId);
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+
+  const missingIds = rows.filter((r) => !r.baby).map((r) => r.baby_id);
+  if (missingIds.length === 0) return rows;
+
+  const { data: names, error: namesError } = await supabase.rpc("my_membership_baby_names");
+  if (namesError) throw namesError;
+  const nicknameById = new Map(names.map((n) => [n.baby_id, n.nickname]));
+
+  return rows.map((r) => (
+    r.baby ? r : { ...r, baby: { id: r.baby_id, nickname: nicknameById.get(r.baby_id) ?? "?", full_name: null } }
+  ));
 }
 
 // ---- Globális owner (profiles.is_owner) ----
