@@ -169,8 +169,15 @@ function buildRegisterForm() {
     submitBtn.disabled = true;
     submitBtn.textContent = "Regisztráció…";
     try {
-      const { session, needsEmailConfirmation } = await signUpAccount(email.input.value.trim(), password.input.value);
+      const { session, needsEmailConfirmation, alreadyRegistered } = await signUpAccount(email.input.value.trim(), password.input.value);
       setState({ authError: null });
+      if (alreadyRegistered) {
+        setState({
+          authMode: "login",
+          authError: "Ha ezzel az email címmel már van fiókod, jelentkezz be — ha elfelejtetted a jelszavad, egyelőre a régi jelszavaddal próbálkozz, jelszó-emlékeztető funkció még nincs az appban.",
+        });
+        return;
+      }
       if (needsEmailConfirmation) {
         setState({
           authMode: "login",
@@ -194,6 +201,7 @@ function mapAuthError(e) {
   const msg = e?.message || String(e);
   if (/invalid login credentials/i.test(msg)) return "Hibás email cím vagy jelszó.";
   if (/user already registered/i.test(msg)) return "Ezzel az email címmel már van regisztráció — jelentkezz be.";
+  if (/email not confirmed/i.test(msg)) return "Még nem erősítetted meg az email címed — nézd meg a postafiókodat (és a spam mappát is), vagy kérj új megerősítő linket.";
   if (/password/i.test(msg) && /least/i.test(msg)) return "A jelszó túl rövid (legalább 6 karakter).";
   return msg;
 }

@@ -26,14 +26,28 @@ export async function getSession() {
   return data.session;
 }
 
-// Email + jelszó regisztráció (Supabase Auth). Feltételezi, hogy a Supabase
-// projektben az email-megerősítés ki van kapcsolva (vagy a session azonnal
-// elérhető) — enélkül nincs hitelesített auth.uid(), amit az RLS policy-k
-// a következő lépésben (baba nickname megadása) megkövetelnek.
+// Email + jelszó regisztráció (Supabase Auth). A Supabase projektben be
+// van kapcsolva a "Confirm email" — signUp() után a session még nem
+// elérhető, amíg a user rá nem kattint a kiküldött megerősítő linkre
+// (utána a supabase-js kliens a detectSessionInUrl miatt automatikusan
+// létrehozza a sessiont, lásd main.js SIGNED_IN kezelése).
+//
+// Anti-enumeration védelemből, ha valaki egy MÁR regisztrált, megerősített
+// emaillel hív signUp()-ot, a Supabase nem hibát ad, hanem egy obfuszkált
+// user objektumot, session: null-lal — és nem is küld ki emailt. Ezt az
+// `identities` tömb üressége árulja el (új regisztrációnál legalább egy
+// elem van benne), enélkül a hívó fél tévesen "erősítsd meg az emailed"
+// üzenetet látna egy sosem érkező emailre várva.
 export async function signUpAccount(email, password) {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
-  return { session: data.session, needsEmailConfirmation: !data.session };
+
+  const looksLikeExistingUser = !data.session && (data.user?.identities?.length ?? 0) === 0;
+  if (looksLikeExistingUser) {
+    return { session: null, needsEmailConfirmation: false, alreadyRegistered: true };
+  }
+
+  return { session: data.session, needsEmailConfirmation: !data.session, alreadyRegistered: false };
 }
 
 // A regisztráció (vagy egy korábban félbeszakadt regisztráció) folytatása:
