@@ -2,25 +2,28 @@ import { supabase } from "./supabase-client.js";
 
 // ---- Babák ----
 
+// A "babies" tábla SELECT-je mostantól kizárólag jóváhagyott tagoknak
+// nyitott (lásd 0007_lock_babies_select.sql) — a regisztrációs
+// nickname-keresésnek viszont azelőtt kell működnie, hogy a usernek
+// bármilyen tagsága lenne, ezért ez egy SECURITY DEFINER RPC-n megy,
+// ami csak az id-t és a nicknevet adja vissza (nem a teljes sort).
 export async function findBabyByNickname(nickname) {
-  const { data, error } = await supabase
-    .from("babies")
-    .select("id, nickname, full_name")
-    .ilike("nickname", nickname.trim())
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("search_baby_nickname", { p_nickname: nickname });
   if (error) throw error;
-  return data;
+  return data?.[0] ?? null;
 }
 
-export async function createBaby({ nickname, full_name }) {
-  const { data, error } = await supabase
-    .from("babies")
-    .insert({ nickname: nickname.trim(), full_name: full_name?.trim() || null })
-    .select("id, nickname, full_name")
-    .single();
+// Atomikusan hozza létre a babát ÉS az admin-tagságot (RPC, SECURITY
+// DEFINER) — kiváltja a korábbi createBaby()+createMembership() két
+// külön hívását, ami az INSERT...RETURNING láthatósági problémáját is
+// magával hozta a régi, nyitott babies SELECT policy nélkül.
+export async function createBabyWithAdmin(nickname, fullName) {
+  const { data, error } = await supabase.rpc("create_baby", {
+    p_nickname: nickname,
+    p_full_name: fullName ?? null,
+  });
   if (error) throw error;
-  return data;
+  return data?.[0] ?? null;
 }
 
 export async function getBaby(babyId) {
@@ -77,36 +80,64 @@ export async function getMyProfile(userId) {
   return data;
 }
 
-// Owner globális áttekintője: minden baba, mindegyikhez a tagságai
-// (role/status/user_id) — a babies_select_authenticated policy mindenkinek
-// nyitott, a baby_members_select policy pedig globális owner-nek is
-// engedi a SELECT-et (lásd 0005_owner_model.sql). Az emaileket külön
-// lekérdezéssel egészítjük ki a profiles táblából (nincs FK a baby_members
-// és a profiles között, amit a PostgREST embedelni tudna) — a profiles
-// SELECT policy (lásd 0006_profile_emails.sql) magától szűkíti a
-// visszakapott sorokat arra, amit a hívó egyáltalán láthat.
-export async function getAllBabiesOverview() {
-  const { data, error } = await supabase
-    .from("babies")
-    .select("id, nickname, full_name, baby_members(user_id, role, status)")
-    .order("nickname");
-  if (error) throw error;
-  const babies = data ?? [];
-
+// Az emaileket külön lekérdezéssel egészítjük ki a profiles táblából
+// (nincs FK a baby_members és a profiles között, amit a PostgREST
+// embedelni tudna) — a profiles SELECT policy (lásd 0006_profile_
+// emails.sql) magától szűkíti a visszakapott sorokat arra, amit a hívó
+// egyáltalán láthat.
+async function attachEmails(babies) {
   const userIds = [...new Set(babies.flatMap((b) => (b.baby_members || []).map((m) => m.user_id)))];
   if (userIds.length === 0) return babies;
 
-  const { data: profiles, error: profilesError } = await supabase
+  const { data: profiles, error } = await supabase
     .from("profiles")
     .select("id, email")
     .in("id", userIds);
-  if (profilesError) throw profilesError;
+  if (error) throw error;
   const emailById = new Map(profiles.map((p) => [p.id, p.email]));
 
   return babies.map((b) => ({
     ...b,
     baby_members: (b.baby_members || []).map((m) => ({ ...m, email: emailById.get(m.user_id) ?? null })),
   }));
+}
+
+// "Saját babák" fül: a babies_select_members policy (0007_lock_babies_
+// select.sql) miatt ez a közvetlen lekérdezés magától is csak azokat a
+// babákat adja vissza, amelyeknél a hívó jóváhagyott tag — pontosan ez
+// kell ide, hiszen a teljes baba-sor (beleértve a bizalmas születési
+// adatokat) csak a tényleges tagoknak jár.
+export async function getOwnBabiesOverview() {
+  const { data, error } = await supabase
+    .from("babies")
+    .select("id, nickname, full_name, baby_members(user_id, role, status)")
+    .order("nickname");
+  if (error) throw error;
+  return attachEmails(data ?? []);
+}
+
+// Owner globális áttekintője: az owner_babies_overview() RPC (SECURITY
+// DEFINER) az összes babát visszaadja, de SZÁNDÉKOSAN csak id/nickname/
+// full_name mezőkkel — a bizalmas születési adatok (dátum, hely, súly,
+// hossz) nélkül, még az ownernek sem, ha nem jóváhagyott tagja a
+// babának. A tagok listáját külön kérdezzük le ugyanezekre az id-kra —
+// azt a baby_members_select policy már helyesen engedi globális ownernek.
+export async function getOwnerBabiesOverview() {
+  const { data: babies, error } = await supabase.rpc("owner_babies_overview");
+  if (error) throw error;
+  if (babies.length === 0) return [];
+
+  const babyIds = babies.map((b) => b.id);
+  const { data: members, error: membersError } = await supabase
+    .from("baby_members")
+    .select("baby_id, user_id, role, status")
+    .in("baby_id", babyIds);
+  if (membersError) throw membersError;
+
+  return attachEmails(babies.map((b) => ({
+    ...b,
+    baby_members: members.filter((m) => m.baby_id === b.id),
+  })));
 }
 
 export async function promoteToAdmin(babyId, userId) {

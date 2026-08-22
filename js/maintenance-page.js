@@ -9,6 +9,7 @@ import { createDateField, createTimeField } from "./datetime-picker.js";
 import { createNumberField, createToggleGroup } from "./fields.js";
 import { updateBaby, createCareTemplate, updateCareTemplate, deleteCareTemplate } from "./data.js";
 import { closeMaintenance, refreshCareData } from "./session.js";
+import { showInlineError } from "./ui-helpers.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -229,7 +230,7 @@ function buildTemplateListCard({ title, icon, color, category, templates, babyId
         await deleteCareTemplate(t.id);
         await refreshCareData(babyId);
       } catch (e) {
-        alert(e.message);
+        showInlineError(deleteWarn, e.message);
         deleteBtn.disabled = false;
       }
     });

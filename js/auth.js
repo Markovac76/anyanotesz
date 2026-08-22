@@ -1,7 +1,7 @@
 import { supabase } from "./supabase-client.js";
 import {
   findBabyByNickname,
-  createBaby,
+  createBabyWithAdmin,
   createMembership,
   getMyMemberships,
   getPendingRequestsForAdminBabies,
@@ -47,10 +47,26 @@ export async function joinOrCreateBaby({ userId, nickname, fullName }) {
     return { status: "pending", baby: existing };
   }
 
-  const baby = await createBaby({ nickname, full_name: fullName });
-  // Az első tag (nincs ki jóváhagyná) automatikusan jóváhagyott admin lesz.
-  await createMembership({ babyId: baby.id, userId, role: "admin", status: "approved" });
-  return { status: "approved", baby };
+  try {
+    // Atomikus RPC: a baba és az admin-tagság egy tranzakcióban jön
+    // létre (0007_lock_babies_select.sql) — nincs "check majd insert"
+    // versenyhelyzet a saját hívásunkon belül.
+    const baby = await createBabyWithAdmin(nickname, fullName);
+    return { status: "approved", baby };
+  } catch (e) {
+    // 23505 = Postgres unique_violation — valaki más, pár másodperccel
+    // előttünk, épp most hozta létre ugyanezt a becenevet
+    // (babies_nickname_unique_ci). Ilyenkor ne hibaüzenetet mutassunk,
+    // hanem csatlakozzunk a most létrejött babához pending user-ként.
+    if (e.code === "23505") {
+      const raceWinner = await findBabyByNickname(nickname);
+      if (raceWinner) {
+        await createMembership({ babyId: raceWinner.id, userId, role: "user", status: "pending" });
+        return { status: "pending", baby: raceWinner };
+      }
+    }
+    throw e;
+  }
 }
 
 // Eldönti, hogy egy bejelentkezett usernek dashboardot, "várakozás

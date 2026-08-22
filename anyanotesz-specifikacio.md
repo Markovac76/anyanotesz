@@ -165,6 +165,20 @@ Minden táblán **Row Level Security** aktív; a policy-k a `baby_members` tábl
 
 > Megjegyzés: a `care_templates`/`care_logs` páros teszi lehetővé, hogy tetszőleges gyógyszer/vitamin (`category = 'medication'`) és tevékenység (`category = 'activity'`) sablon kezelhető legyen ugyanazzal a szerkezettel, napi/heti/havi gyakorisággal. A `category` mező csak a megjelenítést különíti el (két külön lista a Karbantartásban és a főoldalon), technikailag egy táblában laknak. Az emlékeztető-logika (esedékes-e, hány nap van hátra) kliens oldalon számolódik a `care_logs` legutóbbi bejegyzéséből, a heti/havi esetben "hátralévő napok" visszaszámlálóval.
 
+### 3.1 `babies` tábla — hozzáférés kizárólag RPC-ken keresztül (`0007_lock_babies_select.sql`)
+
+A `babies` tábla SELECT-je szigorúan **csak jóváhagyott tagoknak** nyitott (`is_approved_member(id)`) — sem idegen userek, sem a globális owner nem fér hozzá egy baba teljes sorához (beleértve a bizalmas születési dátumot/helyet/súlyt/hosszt), hacsak nem jóváhagyott tagja. Ez korábban (lásd `0003_fix_babies_select_policy.sql`) nyitva volt mindenkinek egy tyúk-tojás probléma miatt (nickname-keresés + `INSERT...RETURNING` láthatóság, mielőtt a usernek bármilyen tagsága lenne) — ezt most három SECURITY DEFINER RPC váltja ki, mindegyik csak a szükséges minimumot adja vissza:
+
+- **`search_baby_nickname(p_nickname)`** — csak `id, nickname`, a regisztrációs "van-e már ilyen becenevű baba" kereséshez.
+- **`create_baby(p_nickname, p_full_name)`** — atomikusan létrehozza a babát ÉS az admin-tagságot egy tranzakcióban (`id, nickname, full_name`-t ad vissza).
+- **`owner_babies_overview()`** — csak globális ownernek: minden babát visszaad, de **csak `id, nickname, full_name`** — a bizalmas születési adatok soha nem szerepelnek benne, még az owner globális "Userek" áttekintőjében sem.
+
+Közvetlen kliens-oldali `INSERT` a `babies` táblára nincs (a policy törölve) — új baba kizárólag a `create_baby()` RPC-n keresztül jöhet létre, hogy ne lehessen admin-tagság nélküli "árva" babát csinálni.
+
+**Nickname-egyediség**: `babies_nickname_unique_ci` case-insensitive unique index — ha két user pár másodpercen belül ugyanazzal a becenévvel regisztrál, a versenyhelyzet vesztese (`23505` hibakód) a kliens oldalon automatikusan a most létrejött babához csatlakozik pending user-ként, hibaüzenet helyett.
+
+**Laza range-check-ek** (nem orvosi pontosságú validáció, csak a nyilvánvalóan hibás adat kiszűrése): `weight_measurements.weight_g`, `feedings.weight_before_g`/`weight_after_g`/`extra_milk_ml`/`extra_formula_ml`, `babies.birth_weight_g`/`birth_length_cm` mind DB-szintű `check` constraint-tel védettek (pl. `weight_g > 0 and weight_g < 30000`).
+
 ---
 
 ## 4. Fejléc és navigáció
@@ -172,7 +186,7 @@ Minden táblán **Row Level Security** aktív; a policy-k a `baby_members` tábl
 - App név: **Anyanotesz**
 - Gombok: **Karbantartás**, **Súgó**, **Kilépés** (mindenkinek, aki babához van kötve), **Userek** (owner-eknek és baba-adminoknak)
 - **Karbantartás**: baba alapadatok szerkesztése, gyógyszer-sablonok és tevékenység-sablonok kezelése (részletek a 6.6 pontban)
-- **Userek**: babánként a saját (admin-i) babák pending kérelmei + tagjai, jóváhagyás/elutasítás/adminná-léptetés gombokkal ("Saját babák"); globális owner-nek emellett egy "Owner nézet" fül minden babával, admin nélkül maradt babák piros jelzésével és vészhelyzeti admin-kijelölés/baba-törlés gombokkal. Ha az owner-nek nincs egyetlen saját baba-tagsága sem, egyenesen ez a nézet a kezdőképernyője.
+- **Userek**: babánként a saját (admin-i) babák pending kérelmei + tagjai, jóváhagyás/elutasítás/adminná-léptetés gombokkal ("Saját babák"); globális owner-nek emellett egy "Owner nézet" fül minden babával, admin nélkül maradt babák piros jelzésével és vészhelyzeti admin-kijelölés/baba-törlés gombokkal — ez a fül a `owner_babies_overview()` RPC-t hívja, ami **soha nem ad vissza bizalmas születési adatot**, csak becenevet/teljes nevet. Ha az owner-nek nincs egyetlen saját baba-tagsága sem, egyenesen ez a nézet a kezdőképernyője.
 - A "gyerek neve" sáv a fejléc alatt: a baba-választó attól függ, hány jóváhagyott baba-tagsága van a usernek (2 vagy több esetén aktív), nem a szerepkörétől.
 
 ---

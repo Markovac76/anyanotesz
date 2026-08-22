@@ -6,7 +6,7 @@ import { resolveUserStatus, loadPendingRequests } from "./auth.js";
 import {
   ensureDefaultCareTemplates, getRecentCareLogs, getQuestions, getBaby,
   getLatestWeightMeasurement, getLastWeightMeasurementInRange,
-  getMyProfile, getAllBabiesOverview,
+  getMyProfile, getOwnBabiesOverview, getOwnerBabiesOverview,
 } from "./data.js";
 import { getHistoryEntries } from "./history.js";
 import { getWeightSeries, getFeedingTimes, getDiaperEvents, getBabyGrowthInfo } from "./charts.js";
@@ -68,15 +68,21 @@ export async function refreshPendingRequests() {
   setState({ pendingRequests });
 }
 
-// "Userek" oldal megnyitása/bezárása. A getAllBabiesOverview() minden babát
-// visszaad, de a beágyazott baby_members sorokat az RLS szűkíti: egy sima
-// baba-admin csak a saját babái teljes taglistáját látja benne, a globális
-// owner pedig mindegyikét — így ugyanaz a lekérdezés szolgálja ki mindkét
-// fület ("Saját babák" / "Minden felhasználó").
+// "Userek" oldal megnyitása/bezárása. A két fül mostantól külön forrásból
+// dolgozik (lásd 0007_lock_babies_select.sql): a "Saját babák" a nyers
+// babies-select policy alapján magától is csak a hívó saját (jóváhagyott)
+// babáit adja vissza; az "Owner nézet" az owner_babies_overview() RPC-t
+// hívja, ami minden babát visszaad, de bizalmas születési adatok nélkül.
 export async function openUsers() {
   setState({ view: "users" });
-  const usersOverview = await getAllBabiesOverview();
-  setState({ usersOverview });
+  const st = getState();
+  const isBabyAdmin = st.memberships.some((m) => m.role === "admin");
+
+  const [usersOverviewOwn, usersOverviewOwner] = await Promise.all([
+    isBabyAdmin ? getOwnBabiesOverview() : Promise.resolve(null),
+    st.isOwner ? getOwnerBabiesOverview() : Promise.resolve(null),
+  ]);
+  setState({ usersOverviewOwn, usersOverviewOwner });
 }
 
 export function closeUsers() {
@@ -188,7 +194,8 @@ export async function exitSession() {
     pendingRequests: [],
     babyPickerOpen: false,
     isOwner: false,
-    usersOverview: null,
+    usersOverviewOwn: null,
+    usersOverviewOwner: null,
     usersOverviewTab: "own",
   });
 }

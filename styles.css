@@ -924,6 +924,12 @@ main {
 .save-status.error { color: #f5a8a0; }
 .save-status.success { color: #8ee9ad; }
 
+.inline-error {
+  font-size: 11.5px;
+  color: #f5a8a0;
+  margin-top: 6px;
+}
+
 /* ---- "Egyéb" doboz: ismétlődő teendő sorok ---- */
 .care-row {
   display: flex;

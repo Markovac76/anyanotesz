@@ -16,6 +16,7 @@ import { getState, setState } from "./state.js";
 import { closeUsers, openUsers, refreshPendingRequests, enterSession } from "./session.js";
 import { approveRequest, rejectRequest } from "./auth.js";
 import { promoteToAdmin, demoteToUser, leaveBaby, deleteBaby } from "./data.js";
+import { showInlineError } from "./ui-helpers.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -73,19 +74,20 @@ export function buildUsersPage(st) {
   }
 
   const tab = showTabs ? st.usersOverviewTab : (st.isOwner ? "owner" : "own");
+  const overview = tab === "owner" ? st.usersOverviewOwner : st.usersOverviewOwn;
 
-  if (!st.usersOverview) {
+  if (!overview) {
     wrap.appendChild(h("div", { className: "hint-box", text: "Betöltés…" }));
     return wrap;
   }
 
-  wrap.appendChild(tab === "owner" ? buildOwnerOverview(st) : buildOwnBabiesView(st));
+  wrap.appendChild(tab === "owner" ? buildOwnerOverview(overview) : buildOwnBabiesView(st, overview));
   return wrap;
 }
 
 // ---- "Saját babák" nézet ----
 
-function buildOwnBabiesView(st) {
+function buildOwnBabiesView(st, overviewList) {
   const container = h("div");
   const adminBabyIds = new Set(st.memberships.filter((m) => m.role === "admin").map((m) => m.baby.id));
 
@@ -95,7 +97,7 @@ function buildOwnBabiesView(st) {
   }
 
   for (const babyId of adminBabyIds) {
-    const overview = st.usersOverview.find((b) => b.id === babyId);
+    const overview = overviewList.find((b) => b.id === babyId);
     if (!overview) continue;
     container.appendChild(buildBabyManageCard(st, overview));
   }
@@ -227,15 +229,15 @@ function buildSoleAdminGuardedButton({ label, isSoleAdmin, onConfirmed }) {
 
 // ---- "Minden felhasználó (Owner nézet)" ----
 
-function buildOwnerOverview(st) {
+function buildOwnerOverview(overviewList) {
   const container = h("div");
 
-  if (st.usersOverview.length === 0) {
+  if (overviewList.length === 0) {
     container.appendChild(h("div", { className: "hint-box", text: "Még nincs egyetlen baba sem a rendszerben." }));
     return container;
   }
 
-  st.usersOverview.forEach((baby) => container.appendChild(buildOwnerBabyCard(baby)));
+  overviewList.forEach((baby) => container.appendChild(buildOwnerBabyCard(baby)));
   return container;
 }
 
@@ -310,7 +312,7 @@ function buildOwnerBabyCard(baby) {
         await deleteBaby(baby.id);
         await openUsers();
       } catch (e) {
-        alert(e.message);
+        showInlineError(deleteWarn, e.message);
         deleteBtn.disabled = false;
       }
     });

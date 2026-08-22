@@ -23,8 +23,13 @@ const state = {
   // baba-szintű admin: függőben lévő kérelmek a saját babáihoz
   pendingRequests: [],
 
-  // "Userek" oldal: owner globális áttekintője (minden baba + tagjaik)
-  usersOverview: null, // [{ id, nickname, full_name, baby_members: [...] }] | null
+  // "Userek" oldal: a két fül külön forrásból dolgozik (lásd
+  // 0007_lock_babies_select.sql) — "own" a hívó saját (jóváhagyott)
+  // babáit adja vissza a nyers babies-select policy alapján, "owner" az
+  // owner_babies_overview() RPC-n keresztül MINDEN babát, de bizalmas
+  // születési adatok nélkül.
+  usersOverviewOwn: null, // [{ id, nickname, full_name, baby_members: [...] }] | null
+  usersOverviewOwner: null, // [{ id, nickname, full_name, baby_members: [...] }] | null
   usersOverviewTab: "own", // "own" | "owner" — csak ha isOwner és van saját tagsága is
 
   // Gyerek-doboz (mindig látható infósáv, 5. pont): baba alapadatok,

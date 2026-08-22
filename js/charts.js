@@ -5,15 +5,20 @@
 
 import { supabase } from "./supabase-client.js";
 
+// A limit a rendezés UTÁN érvényesül — ascending sorrendben egy limit a
+// legrégebbi N sort tartaná meg, a legújabbak esnének ki a grafikonból,
+// ha a történet túlnő a limiten. Ezért csökkenő sorrendben (legújabb
+// előbb) kérdezünk le + limitálunk, majd .reverse()-eljük vissza
+// időrendbe (régi → új), amit a rajzoló kód vár.
 export async function getWeightSeries(babyId) {
   const { data, error } = await supabase
     .from("weight_measurements")
     .select("measured_at, weight_g")
     .eq("baby_id", babyId)
-    .order("measured_at", { ascending: true })
+    .order("measured_at", { ascending: false })
     .limit(2000);
   if (error) throw error;
-  return data.map((r) => ({ when: new Date(r.measured_at), weightG: r.weight_g }));
+  return data.reverse().map((r) => ({ when: new Date(r.measured_at), weightG: r.weight_g }));
 }
 
 export async function getFeedingTimes(babyId) {
@@ -21,10 +26,10 @@ export async function getFeedingTimes(babyId) {
     .from("feedings")
     .select("started_at")
     .eq("baby_id", babyId)
-    .order("started_at", { ascending: true })
+    .order("started_at", { ascending: false })
     .limit(3000);
   if (error) throw error;
-  return data.map((r) => new Date(r.started_at));
+  return data.reverse().map((r) => new Date(r.started_at));
 }
 
 export async function getDiaperEvents(babyId) {
@@ -32,10 +37,10 @@ export async function getDiaperEvents(babyId) {
     .from("diapers")
     .select("changed_at, type")
     .eq("baby_id", babyId)
-    .order("changed_at", { ascending: true })
+    .order("changed_at", { ascending: false })
     .limit(3000);
   if (error) throw error;
-  return data.map((r) => ({ when: new Date(r.changed_at), type: r.type }));
+  return data.reverse().map((r) => ({ when: new Date(r.changed_at), type: r.type }));
 }
 
 export async function getBabyGrowthInfo(babyId) {

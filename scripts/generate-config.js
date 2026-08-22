@@ -7,13 +7,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const SUPABASE_URL = "https://hatmnkenpmmutaqfrnvs.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-if (!SUPABASE_ANON_KEY) {
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error(
-    "Hiányzik a SUPABASE_ANON_KEY környezeti változó. Állítsd be a Vercel " +
-    "projekt Settings → Environment Variables alatt, majd deployolj újra."
+    "Hiányzik a SUPABASE_URL és/vagy a SUPABASE_ANON_KEY környezeti változó. " +
+    "Állítsd be mindkettőt a Vercel projekt Settings → Environment Variables " +
+    "alatt, majd deployolj újra."
   );
   process.exit(1);
 }

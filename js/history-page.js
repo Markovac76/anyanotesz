@@ -15,6 +15,7 @@ import {
   updateCareLogEntry, deleteCareLogEntry,
 } from "./history.js";
 import { closeHistory, openGraphs } from "./session.js";
+import { showInlineError } from "./ui-helpers.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -285,7 +286,7 @@ function openEditModal(entry, babyId) {
     if (entry.type === "weight") {
       const weightG = parseInt(weightValue, 10);
       if (!weightValue || Number.isNaN(weightG) || weightG <= 0) {
-        alert("Add meg a súlyt.");
+        showInlineError(actions, "Add meg a súlyt.");
         return;
       }
     }
@@ -313,7 +314,7 @@ function openEditModal(entry, babyId) {
       backdrop.remove();
       setState({ historyEntries, historyEditing: null });
     } catch (e) {
-      alert(e.message);
+      showInlineError(actions, e.message);
       saveBtn.disabled = false;
       saveBtn.textContent = "Mentés";
     }
@@ -345,7 +346,7 @@ function openEditModal(entry, babyId) {
       backdrop.remove();
       setState({ historyEntries, historyEditing: null });
     } catch (e) {
-      alert(e.message);
+      showInlineError(deleteWarn, e.message);
       deleteBtn.disabled = false;
     }
   });

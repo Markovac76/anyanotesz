@@ -9,6 +9,7 @@ import { createDateField, createTimeField } from "./datetime-picker.js";
 import { createNumberField, createToggleGroup, createPillGroup } from "./fields.js";
 import { createWeightMeasurement, createFeeding, createDiaper, logCareDone, createQuestion, updateQuestion } from "./data.js";
 import { refreshCareData, refreshBabyInfo } from "./session.js";
+import { showInlineError } from "./ui-helpers.js";
 
 function h(tag, opts = {}, children = []) {
   const node = document.createElement(tag);
@@ -376,7 +377,7 @@ function buildCareRow(template, careLogs, babyId, userId, onLogged) {
   const latest = logs[0] || null;
   const isActivity = template.category === "activity";
 
-  function buildActionBtn(text) {
+  function buildActionBtn(text, container) {
     const btn = h("button", { className: "care-btn", text });
     btn.addEventListener("click", async () => {
       btn.disabled = true;
@@ -387,7 +388,7 @@ function buildCareRow(template, careLogs, babyId, userId, onLogged) {
       } catch (e) {
         btn.disabled = false;
         btn.textContent = text;
-        alert(e.message);
+        showInlineError(container, e.message);
       }
     });
     return btn;
@@ -410,7 +411,7 @@ function buildCareRow(template, careLogs, babyId, userId, onLogged) {
     if (doneToday) {
       row.appendChild(h("button", { className: "care-btn done", text: `✓ ${verb}` }));
     } else {
-      row.appendChild(buildActionBtn("Jelölöm"));
+      row.appendChild(buildActionBtn("Jelölöm", row));
     }
     return row;
   }
@@ -427,7 +428,7 @@ function buildCareRow(template, careLogs, babyId, userId, onLogged) {
     info.appendChild(h("div", { className: "care-freq", text: freqNoun }));
     info.appendChild(h("div", { className: "care-status-alert" }, [h("span", { text: "⚠" }), h("span", { text: "Esedékes" })]));
     row.appendChild(info);
-    row.appendChild(buildActionBtn(actionLabel));
+    row.appendChild(buildActionBtn(actionLabel, row));
     return row;
   }
 
@@ -446,7 +447,7 @@ function buildCareRow(template, careLogs, babyId, userId, onLogged) {
     info.appendChild(h("div", { className: "care-status-ok" }, [h("span", { text: "✓" }), h("span", { text: `${verb} · következő: ${fmtDate(nextDue)} (még ${daysLeft} nap)` })]));
   }
   row.appendChild(info);
-  if (due) row.appendChild(buildActionBtn(actionLabel));
+  if (due) row.appendChild(buildActionBtn(actionLabel, row));
   return row;
 }
 
@@ -570,7 +571,7 @@ export function buildQuestionsCard(st) {
           const prev = q.recipient;
           q.recipient = v;
           try { await updateQuestion(q.id, { recipient: v }); setState({ questions: [...questions] }); }
-          catch (e) { q.recipient = prev; alert(e.message); renderList(); }
+          catch (e) { q.recipient = prev; recGroup.setValue(prev); showInlineError(detail, e.message); }
         },
       });
       detail.appendChild(h("div", { style: { marginBottom: "10px" } }, [recGroup.el]));
@@ -585,7 +586,7 @@ export function buildQuestionsCard(st) {
         const value = answerInput.value;
         if (value === (q.answer || "")) return;
         try { await updateQuestion(q.id, { answer: value }); q.answer = value; setState({ questions: [...questions] }); }
-        catch (e) { alert(e.message); }
+        catch (e) { showInlineError(detail, e.message); }
       });
       detail.appendChild(h("div", { style: { marginBottom: "10px" } }, [answerInput]));
 
@@ -598,7 +599,7 @@ export function buildQuestionsCard(st) {
           const nv = v === "answered";
           q.answered = nv;
           try { await updateQuestion(q.id, { answered: nv }); setState({ questions: [...questions] }); }
-          catch (e) { q.answered = prev; alert(e.message); renderList(); }
+          catch (e) { q.answered = prev; statusGroup.setValue(prev ? "answered" : "open"); showInlineError(detail, e.message); }
         },
       });
       detail.appendChild(statusGroup.el);
@@ -634,7 +635,7 @@ export function buildQuestionsCard(st) {
       const created = await createQuestion({ babyId, userId, text, recipient: newRecipient });
       setState({ questions: [created, ...st.questions] });
     } catch (e) {
-      alert(e.message);
+      showInlineError(body, e.message);
       addBtn.disabled = false;
     }
   });
